@@ -8,52 +8,30 @@ function viewHome() {
   const active = S.ideas.filter((i) => i.stage !== 'archivada');
   const name = S.settings.name ? ', ' + S.settings.name : '';
   const today = fmtDate(new Date(), { weekday: 'long', day: 'numeric', month: 'long' });
-  const next = upcomingSessions()[0];
-  const counts = STAGES.slice(0, 4).map((s) => ({ s, n: active.filter((i) => i.stage === s.id).length }));
-  const stale = active.filter((i) => daysSince(i.updatedAt) >= 30).sort((a, b) => a.updatedAt.localeCompare(b.updatedAt)).slice(0, 3);
-  const noNext = active.filter((i) => daysSince(i.updatedAt) < 30 && !(i.answers.siguiente || '').trim()).slice(0, 2);
-  const pairs = combinationPairs(2);
+  const recent = active.slice().sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 8);
   const backupAge = daysSince(S.settings.lastBackup);
 
   let html = '<header class="topbar"><div class="brand">' + logo() + '<span>Semillero</span></div><div class="topbar-actions">' +
-    '<a class="icon-btn" href="#/ideas" aria-label="Buscar ideas"><svg aria-hidden="true" class="ic" width="20" height="20" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></a>' +
     '<a class="icon-btn" href="#/settings" aria-label="Ajustes">' + icon('gear') + '</a></div></header>';
-
   html += '<section class="hello"><p class="muted small cap">' + esc(today) + '</p><h1 class="display">Hola' + esc(name) + '</h1></section>';
 
-  if (!S.ideas.length && !S.inbox.length) {
-    html += '<section class="card hero"><h2>Tu semillero está vacío</h2><p>Captura cualquier idea: una escena, una pregunta filosófica, un invento. Después la maduras paso a paso.</p>' +
-      '<div class="row gap"><a class="btn" href="#/capture">Capturar mi primera idea</a><a class="btn ghost" href="#/settings">Ajustes</a></div></section>';
+  html += '<a class="new-sheet" href="#/capture"><span class="new-sheet-lines" aria-hidden="true"></span>' +
+    '<span class="new-sheet-text"><strong>Nueva idea</strong><span>Escribe, dibuja o pega un link</span></span>' +
+    '<span class="new-sheet-plus" aria-hidden="true">' + icon('plus', 26) + '</span></a>';
+
+  if (recent.length) {
+    html += '<section><div class="row between"><h2 class="h2">Recientes</h2><a class="small" href="#/mapa">Ver mapa</a></div>' +
+      '<div class="orb-row scroll-x">' + recent.map((i) => '<a class="orb-item" href="#/idea/' + i.id + '">' + orbHtml(i, 'md') + '<span>' + esc(ideaTitle(i)) + '</span></a>').join('') + '</div></section>';
   }
 
-  if (next) {
-    html += '<section class="card dark" aria-label="Próxima sesión">' +
-      '<p class="small row gap-s">' + icon('clock', 14) + esc(sessionWhen(next)) + ' · ' + next.minutes + ' min</p>' +
-      '<h2>' + esc(targetTitle(next.target)) + '</h2>' + (next.goal ? '<p class="soft">Objetivo: ' + esc(next.goal) + '</p>' : '') +
-      '<div class="row gap"><a class="btn light" href="' + targetHref(next.target) + '">Abrir</a><a class="btn outline-light" href="#/agenda">Agenda</a></div></section>';
-  } else if (active.length) {
-    html += '<a class="card row between" href="#/agenda"><span><strong>Sin sesiones agendadas</strong><br><span class="small muted">Reserva tiempo para avanzar una idea</span></span>' + icon('chevron') + '</a>';
-  }
+  const extra = [];
+  const topics = typeof pendingTopics === 'function' ? pendingTopics() : [];
+  if (topics.length) extra.push('<a class="card row gap" href="#/cuaderno">' + icon('book') + '<span class="grow"><strong>' + topics.length + (topics.length === 1 ? ' tema' : ' temas') + ' para tu próxima sesión</strong><br><span class="small muted">Cuaderno' + (S.settings.nextTherapy ? ' · ' + esc(therapyDateLabel(S.settings.nextTherapy)) : '') + '</span></span>' + icon('chevron') + '</a>');
+  if (S.inbox.length) extra.push('<a class="card row gap" href="#/inbox">' + icon('inbox') + '<span class="grow"><strong>' + S.inbox.length + ' en la bandeja</strong><br><span class="small muted">Capturas de antes, sin clasificar</span></span>' + icon('chevron') + '</a>');
+  if (backupAge >= 7 && S.ideas.length) extra.push('<a class="card row gap warn-card" href="#/settings">' + icon('lock') + '<span class="grow"><strong>Haz un respaldo</strong><br><span class="small">' + (S.settings.lastBackup ? 'Último respaldo ' + relDays(S.settings.lastBackup) : 'Aún no tienes respaldo fuera del teléfono') + '</span></span>' + icon('chevron') + '</a>');
+  if (extra.length) html += '<section class="stack">' + extra.join('') + '</section>';
 
-  if (active.length) {
-    html += '<section><div class="row between"><h2 class="h2">Tu jardín</h2><span class="small muted">' + active.length + ' ideas activas</span></div><div class="grid4">' +
-      counts.map((c) => '<a class="stat stat-' + c.s.id + '" href="#/ideas?stage=' + c.s.id + '"><strong>' + c.n + '</strong><span>' + esc(c.s.label) + '</span></a>').join('') + '</div></section>';
-  }
-
-  const attention = [];
-  if (S.inbox.length) attention.push('<a class="card row gap" href="#/inbox">' + icon('inbox') + '<span class="grow"><strong>' + S.inbox.length + ' en la bandeja</strong><br><span class="small muted">Clasifícalas en una idea o escena</span></span>' + icon('chevron') + '</a>');
-  stale.forEach((i) => attention.push(attentionRow(i, 'Sin actividad ' + relDays(i.updatedAt))));
-  noNext.forEach((i) => attention.push(attentionRow(i, 'Falta definir el siguiente paso')));
-  if (backupAge >= 7 && S.ideas.length) attention.push('<a class="card row gap warn-card" href="#/settings">' + icon('lock') + '<span class="grow"><strong>Haz un respaldo</strong><br><span class="small">' + (S.settings.lastBackup ? 'Último respaldo ' + relDays(S.settings.lastBackup) : 'Aún no tienes respaldo fuera del teléfono') + '</span></span>' + icon('chevron') + '</a>');
-  if (attention.length) html += '<section><h2 class="h2">Necesitan atención</h2><div class="stack">' + attention.join('') + '</div></section>';
-
-  if (pairs.length) {
-    html += '<section><h2 class="h2">Podrían combinarse</h2><div class="stack">' + pairs.map((p) =>
-      '<div class="card soft-card"><p class="small row gap-s strong">' + icon('merge', 16) + 'Ideas de sectores distintos con temas en común</p>' +
-      '<p><a href="#/idea/' + p.a.id + '">' + esc(ideaTitle(p.a)) + '</a> + <a href="#/idea/' + p.b.id + '">' + esc(ideaTitle(p.b)) + '</a></p>' +
-      '<div class="row gap"><button class="btn small-btn" data-act="combine" data-a="' + p.a.id + '" data-b="' + p.b.id + '">Combinar</button>' +
-      '<button class="btn ghost small-btn" data-act="relate" data-a="' + p.a.id + '" data-b="' + p.b.id + '">Solo conectar</button></div></div>').join('') + '</div></section>';
-  }
+  html += '<section class="quick-links"><a href="#/cine">' + icon('film', 18) + 'Taller de cine</a><a href="#/agenda">' + icon('clock', 18) + 'Agenda</a></section>';
   return html;
 }
 
@@ -76,8 +54,8 @@ function viewIdeas(qs) {
   const sectorChips = chip('Todos los sectores', { on: !f.sector, data: { act: 'filterSector', sector: '' } }) +
     S.settings.sectors.map((s) => chip(s, { on: f.sector === s, color: sectorColor(s), data: { act: 'filterSector', sector: s } })).join('');
   onMount(() => { renderIdeaList(); });
-  return topbar({ title: 'Ideas', actions: '<a class="btn small-btn" href="#/capture">' + icon('plus', 16) + 'Nueva</a>' }) +
-    '<label class="search"><span class="sr">Buscar</span><input id="idea-search" type="search" placeholder="Buscar en títulos, notas y respuestas" value="' + esc(f.q) + '"></label>' +
+  return topbar({ title: 'Jardín', sub: 'Todas tus ideas', actions: '<a class="btn small-btn" href="#/capture">' + icon('plus', 16) + 'Nueva</a>' }) +
+    '<label class="search"><span class="sr">Buscar</span><input id="idea-search" type="search" placeholder="Buscar en tus ideas" value="' + esc(f.q) + '"></label>' +
     '<div class="chips scroll-x">' + stageChips + '</div><div class="chips scroll-x">' + sectorChips + '</div>' +
     '<div id="idea-list" class="stack"></div>';
 }
@@ -111,87 +89,85 @@ Object.assign(ACTIONS, {
 /* ================= DETALLE DE IDEA ================= */
 route(/^#\/idea\/([^/?]+)$/, viewIdea, 'ideas');
 
+function hojaHtml(owner, title, body, attrsTitle, attrsBody, ink) {
+  return '<div class="hoja" id="hoja" data-owner="' + owner + '">' + inkLayer(ink) +
+    '<label class="sr" for="hoja-title">Título</label><textarea id="hoja-title" class="hoja-title autosize" rows="1" placeholder="Título" enterkeyhint="next" ' + attrsTitle + '>' + esc(title) + '</textarea>' +
+    '<label class="sr" for="hoja-body">Nota</label><textarea id="hoja-body" class="hoja-body autosize" rows="3" placeholder="Escribe libremente. La primera oración se vuelve el título." ' + attrsBody + '>' + esc(body) + '</textarea>' +
+    '</div>' +
+    '<button type="button" id="ink-fab" class="ink-fab" data-act="inkToggle" aria-pressed="false" aria-label="Dibujar en la hoja"><svg class="ic" width="24" height="24" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>';
+}
+
+/* La primera oración (o línea) de la hoja es el título; el resto baja a la nota. */
+function splitHojaTitle(el) {
+  const body = $('#hoja-body');
+  if (!body) return false;
+  const v = el.value;
+  let cut = -1; let skip = 0;
+  const nl = v.indexOf('\n');
+  const m = v.match(/^(.+?[.!?…])\s+(?=\S)/);
+  if (m && (nl < 0 || m[1].length < nl)) { cut = m[1].length; skip = m[0].length - m[1].length; } else if (nl >= 0) { cut = nl; skip = 1; }
+  if (cut < 0) return false;
+  const rest = v.slice(cut + skip);
+  el.value = v.slice(0, cut).trim();
+  body.value = rest + (body.value ? (rest ? '\n' : '') + body.value : '');
+  autosize(el); autosize(body);
+  body.focus();
+  body.setSelectionRange(rest.length, rest.length);
+  body.dispatchEvent(new Event('input', { bubbles: true }));
+  return true;
+}
+
+document.addEventListener('keydown', (e) => {
+  const t = e.target;
+  if (t && t.id === 'hoja-body' && e.key === 'Backspace' && t.selectionStart === 0 && t.selectionEnd === 0) {
+    const title = $('#hoja-title'); if (!title) return;
+    e.preventDefault();
+    const n = title.value.length;
+    title.focus(); title.setSelectionRange(n, n);
+  }
+});
+
 function viewIdea(id) {
   const idea = byId('ideas', id);
-  if (!idea) return topbar({ title: 'Idea', back: '#/ideas' }) + emptyState('No encontré esta idea', 'Puede que se haya eliminado.', '<a class="btn" href="#/ideas">Ver ideas</a>');
+  if (!idea) return topbar({ title: 'Idea', back: '#/ideas' }) + emptyState('No encontré esta idea', 'Puede que se haya eliminado.', '<a class="btn" href="#/ideas">Ver el jardín</a>');
   const fld = (path) => 'data-field="ideas|' + id + '|' + path + '"';
-  const m = maturity(idea);
-  const set = QUESTION_SETS[idea.qset] || QUESTION_SETS.general;
-  const sessions = S.sessions.filter((s) => s.target === 'idea:' + id);
-  const upcoming = sessions.filter((s) => !s.done && parseLocal(s.start) >= startOfToday()).sort((a, b) => a.start.localeCompare(b.start));
-  const hours = sessions.filter((s) => s.done).reduce((a, s) => a + s.minutes, 0) / 60;
   const related = idea.related.map((r) => byId('ideas', r)).filter(Boolean);
-  const sugg = similarIdeas([idea.title, idea.body].join(' '), id, 3).filter((x) => !idea.related.includes(x.idea.id));
-  const others = S.ideas.filter((i) => i.id !== id && !idea.related.includes(i.id) && i.stage !== 'archivada');
   const works = S.works.filter((w) => w.ideaId === id);
   const creative = idea.sectors.some((s) => CREATIVE_SECTORS.includes(s)) || works.length;
 
-  let html = topbar({ title: 'Idea', back: '#/ideas', actions: '<a class="btn dark small-btn" href="#/ai/' + id + '">' + icon('spark', 16) + 'Asistente</a>' });
+  onMount(() => { fitInk(); loadPreviews(idea); if (!idea.title && !idea.body) $('#hoja-title').focus(); });
 
-  html += '<div class="tags">' + sectorTags(idea.sectors) + '</div>';
-  html += '<label class="sr" for="idea-title">Título</label><textarea id="idea-title" class="title-input autosize" rows="1" placeholder="Título de la idea" ' + fld('title') + '>' + esc(idea.title) + '</textarea>';
+  let html = topbar({ title: '', back: '#/ideas', actions: '<a class="icon-btn" href="#/mapa" aria-label="Ver en el mapa"><svg class="ic" width="20" height="20" viewBox="0 0 24 24"><circle cx="6" cy="7" r="3"/><circle cx="18" cy="9" r="3"/><circle cx="11" cy="18" r="3"/><path d="M8.6 8.4 9.8 15.3M8.9 6.6l6.2 1.6M16.4 11.6l-3.6 4.2"/></svg></a>' });
 
-  html += '<div class="seg" role="group" aria-label="Etapa">' + STAGES.slice(0, 4).map((s, i) => {
-    const idx = STAGES.findIndex((x) => x.id === idea.stage);
-    const state = s.id === idea.stage ? ' current' : (i < idx && idea.stage !== 'archivada' ? ' past' : '');
-    return '<button type="button" class="seg-step' + state + '" data-act="ideaStage" data-id="' + id + '" data-stage="' + s.id + '" aria-pressed="' + (s.id === idea.stage) + '"><span class="bar"></span>' + esc(s.label) + '</button>';
-  }).join('') + '</div>';
-  if (idea.stage === 'archivada') html += '<p class="small warn">Esta idea está archivada. Elige una etapa para reactivarla.</p>';
+  html += hojaHtml('ideas|' + id, idea.title, idea.body, fld('title'), fld('body'), idea.ink);
+  html += '<div id="relics" class="relics" data-id="' + id + '">' + relicsHtml(idea) + '</div>';
 
-  html += '<section class="section"><h2 class="h2">Sectores</h2><div class="chips">' +
-    S.settings.sectors.map((s) => chip(s, { on: idea.sectors.includes(s), color: sectorColor(s), data: { act: 'ideaSector', id, sector: s } })).join('') +
-    '<button type="button" class="chip ghost" data-act="addSector" data-id="' + id + '">+ Sector</button></div></section>';
-
-  html += '<section class="section"><h2 class="h2">Notas</h2><textarea class="autosize body-input" rows="4" placeholder="Desarrolla la idea libremente. Puedes dictar con el micrófono del teclado." ' + fld('body') + '>' + esc(idea.body) + '</textarea></section>';
-
-  html += '<section class="section card"><div class="row between"><h2 class="h2 m0">Madurez <span id="maturity-pct">' + m.pct + '%</span></h2>' +
-    '<span class="small muted" id="maturity-count">' + m.done + ' de ' + m.total + '</span></div>' +
-    '<span class="meter lg"><span id="maturity-bar" style="width:' + m.pct + '%"></span></span>' +
-    '<div class="row gap-s small"><span class="muted">Preguntas:</span>' + Object.keys(QUESTION_SETS).map((k) => chip(QUESTION_SETS[k].label, { on: idea.qset === k, data: { act: 'ideaQset', id, qset: k } })).join('') + '</div>' +
-    set.items.map((it) => '<label class="field q"><span class="field-label">' + esc(it.q) + '</span><textarea class="autosize" rows="1" ' + fld('answers.' + it.id) + ' placeholder="Escribe aquí…">' + esc(idea.answers[it.id] || '') + '</textarea></label>').join('') +
-    '<a class="small strong" href="#/ai/' + id + '">¿Atorado? Pide ayuda al asistente →</a></section>';
-
-  html += '<section class="section"><h2 class="h2">Links</h2><div class="stack-s">' + idea.links.map((l, i) =>
-    '<div class="row gap list-row"><a class="grow ellipsis" href="' + esc(safeUrl(l.url)) + '" target="_blank" rel="noopener noreferrer">' + icon('link', 16) + ' ' + esc(l.label || l.url) + '</a>' +
-    '<button class="icon-btn sm" data-act="ideaDelLink" data-id="' + id + '" data-i="' + i + '" aria-label="Quitar link">' + icon('trash', 16) + '</button></div>').join('') + '</div>' +
-    '<div class="row gap"><label class="sr" for="link-url">Dirección del link</label><input id="link-url" type="url" inputmode="url" placeholder="https://…" class="grow">' +
-    '<button class="btn ghost small-btn" data-act="ideaAddLink" data-id="' + id + '">Añadir</button></div></section>';
-
-  html += '<section class="section"><h2 class="h2">Fotos y bocetos</h2><div class="thumbs">' + idea.photos.map((p) =>
+  html += '<div class="thumbs">' + idea.photos.map((p) =>
     '<button class="thumb" data-act="viewPhoto" data-blob="' + p + '" data-owner="ideas|' + id + '" aria-label="Ver foto"><img alt="" data-blob="' + p + '"></button>').join('') +
-    '<label class="thumb add">' + icon('camera') + '<span>Añadir</span><input type="file" accept="image/*" multiple hidden data-change="ideaPhotos" data-id="' + id + '"></label></div></section>';
+    '<label class="thumb add">' + icon('camera') + '<span>Foto</span><input type="file" accept="image/*" multiple hidden data-change="ideaPhotos" data-id="' + id + '"></label></div>';
 
-  html += '<section class="section"><h2 class="h2">Conexiones</h2><div class="chips">' + (related.length ? related.map((r) =>
-    '<span class="chip on-soft"><a href="#/idea/' + r.id + '">' + esc(ideaTitle(r)) + '</a><button class="x" data-act="unrelate" data-a="' + id + '" data-b="' + r.id + '" aria-label="Quitar conexión">×</button></span>').join('') : '<span class="small muted">Aún sin conexiones.</span>') + '</div>';
-  if (sugg.length) html += '<p class="small muted">Parecidas (por palabras en común):</p><div class="stack-s">' + sugg.map((x) =>
-    '<div class="row gap list-row"><a class="grow" href="#/idea/' + x.idea.id + '">' + esc(ideaTitle(x.idea)) + '</a><button class="btn ghost small-btn" data-act="relate" data-a="' + id + '" data-b="' + x.idea.id + '">Conectar</button></div>').join('') + '</div>';
-  if (others.length) {
-    const opts = '<option value="">Elegir idea…</option>' + others.map((o) => '<option value="' + o.id + '">' + esc(ideaTitle(o)) + '</option>').join('');
-    html += '<div class="grid2">' + field('Conectar con', '<select data-change="relateSelect" data-id="' + id + '">' + opts + '</select>') +
-      field('Combinar con', '<select data-change="combineSelect" data-id="' + id + '">' + opts + '</select>') + '</div>';
-  }
-  html += '</section>';
+  html += '<section class="section"><h2 class="h2">Estado</h2><div class="chips">' + STAGES.slice(0, 4).map((s) =>
+    chip(s.label, { on: idea.stage === s.id, data: { act: 'ideaStage', id, stage: s.id } })).join('') + '</div>' +
+    (idea.stage === 'archivada' ? '<p class="small warn">Archivada. Elige un estado para reactivarla.</p>' : '') + '</section>';
 
-  html += '<section class="section"><div class="row between"><h2 class="h2 m0">Sesiones de trabajo</h2><span class="small muted">' + hours.toFixed(1) + ' h invertidas</span></div><div class="stack-s">' +
-    (upcoming.length ? upcoming.map(sessionRow).join('') : '<p class="small muted">No hay sesiones próximas.</p>') + '</div>' +
-    '<button class="btn ghost" data-act="newSession" data-target="idea:' + id + '">' + icon('plus', 16) + 'Agendar sesión</button></section>';
+  html += '<section class="section"><div class="row gap-s"><h2 class="h2 m0">Tags</h2>' + orbHtml(idea, 'xs') + '<span class="small muted">su canica mezcla sus colores</span></div><div class="chips">' +
+    S.settings.sectors.map((s) => chip(s, { on: idea.sectors.includes(s), color: sectorColor(s), data: { act: 'ideaSector', id, sector: s } })).join('') +
+    '<button type="button" class="chip ghost" data-act="addSector" data-id="' + id + '">+ Tag</button></div></section>';
 
-  if (creative) {
-    html += '<section class="section card"><h2 class="h2">' + icon('film', 18) + ' Taller de cine</h2>' +
-      (works.length ? '<div class="stack-s">' + works.map((w) => '<a class="row between list-row" href="#/obra/' + w.id + '"><span>' + esc(w.title || 'Obra sin título') + '</span>' + icon('chevron') + '</a>').join('') + '</div>' : '<p class="small muted">Convierte esta idea en una obra para trabajar escenas, diálogos y adaptaciones.</p>') +
-      '<button class="btn ghost" data-act="workFromIdea" data-id="' + id + '">Crear obra desde esta idea</button></section>';
-  }
-
-  html += '<section class="section card"><h2 class="h2">' + icon('lock', 18) + ' Privacidad</h2>' +
-    '<label class="switch"><input type="checkbox" ' + (idea.aiAllowed ? 'checked ' : '') + fld('aiAllowed') + '><span>Permitir que el asistente lea esta idea</span></label>' +
-    '<p class="small muted">Si lo apagas, nada de esta idea se envía a la IA, ni siquiera en el modo Conector.</p></section>';
+  html += '<section class="section"><div class="row between"><h2 class="h2 m0">Lazos</h2><a class="small" href="#/mapa">Unir en el mapa</a></div><div class="chips">' + (related.length ? related.map((r) =>
+    '<span class="chip on-soft"><a href="#/idea/' + r.id + '">' + esc(ideaTitle(r)) + '</a><button class="x" data-act="unrelate" data-a="' + id + '" data-b="' + r.id + '" aria-label="Cortar lazo">×</button></span>').join('')
+    : '<span class="small muted">Idea solitaria por ahora: orbita en el mapa.</span>') + '</div></section>';
 
   html += '<section class="section row gap wrap">' +
-    (idea.stage !== 'archivada' ? '<button class="btn ghost" data-act="ideaStage" data-id="' + id + '" data-stage="archivada">Archivar</button>' : '') +
-    '<button class="btn danger-ghost" data-act="deleteIdea" data-id="' + id + '">Eliminar</button>' +
+    (creative ? '<button class="btn ghost small-btn" data-act="workFromIdea" data-id="' + id + '">' + icon('film', 16) + 'Llevar al taller de cine</button>' : '') +
+    (idea.stage !== 'archivada' ? '<button class="btn ghost small-btn" data-act="ideaStage" data-id="' + id + '" data-stage="archivada">Archivar</button>' : '') +
+    '<button class="btn danger-ghost small-btn" data-act="deleteIdea" data-id="' + id + '">Eliminar</button>' +
     '<span class="small muted grow right">Creada ' + relDays(idea.createdAt) + '</span></section>';
   return html;
 }
+
+HOOKS['ideas.title'] = (idea) => scheduleRelics(idea);
+HOOKS['ideas.body'] = (idea) => scheduleRelics(idea);
 
 function safeUrl(u) {
   const s = String(u || '').trim();
@@ -243,7 +219,7 @@ Object.assign(ACTIONS, {
     if (!name) return;
     if (!S.settings.sectors.includes(name)) { S.settings.sectors.push(name); await saveSettings(); }
     if (el.dataset.id) { const i = byId('ideas', el.dataset.id); if (i && !i.sectors.includes(name)) { i.sectors.push(name); await persist('ideas', i); } }
-    if (UI.cap && !el.dataset.id) UI.cap.sectors.push(name);
+    
     rerender();
   },
   async ideaQset(el) { const i = byId('ideas', el.dataset.id); i.qset = el.dataset.qset; await persist('ideas', i); rerender(); },
@@ -294,89 +270,97 @@ Object.assign(CHANGES, {
   combineSelect(el) { if (el.value && confirm('¿Crear una idea nueva que combine ambas?')) combineIdeas(el.dataset.id, el.value); else el.value = ''; }
 });
 
-/* ================= CAPTURA RÁPIDA ================= */
+/* ================= NUEVA IDEA ================= */
 route(/^#\/capture$/, viewCapture, '');
 
-function resetCapture() { UI.cap = { text: '', link: '', photos: [], dest: 'bandeja', ideaId: '', kind: 'escena', sectors: [] }; }
+function resetCapture() { UI.cap = { title: '', text: '', photos: [], dest: 'nueva', anchorId: '', ink: null }; }
 
 function viewCapture() {
-  if (!UI.cap) resetCapture();
+  if (!UI.cap || UI.cap.dest === 'bandeja' || UI.cap.title == null) resetCapture();
   const c = UI.cap;
-  const ideas = S.ideas.filter((i) => i.stage !== 'archivada').sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-  const dest = (val, label) => '<label class="radio"><input type="radio" name="dest" value="' + val + '" ' + (c.dest === val ? 'checked' : '') + ' data-change="capDest"><span>' + label + '</span></label>';
-  onMount(() => { const t = $('#cap-text'); if (t && !c.text) t.focus(); updateCapSuggest(); });
-  return topbar({ title: 'Nueva captura', back: '#/', actions: '<button class="btn small-btn" data-act="capSave">Guardar</button>' }) +
-    field('Escribe o dicta tu idea', '<textarea id="cap-text" class="autosize big" rows="5" placeholder="Una escena, una pregunta, un invento… Usa el micrófono del teclado para dictar.">' + esc(c.text) + '</textarea>') +
-    '<div class="row gap">' + '<label class="sr" for="cap-link">Link</label><input id="cap-link" class="grow" type="url" inputmode="url" placeholder="Pega un link (opcional)" value="' + esc(c.link) + '">' +
-    '<label class="btn ghost small-btn">' + icon('camera', 16) + 'Foto<input type="file" accept="image/*" multiple hidden data-change="capPhotos"></label></div>' +
-    '<div class="thumbs" id="cap-photos">' + c.photos.map((p) => '<span class="thumb"><img alt="" data-blob="' + p + '"></span>').join('') + '</div>' +
-    '<div id="cap-sugg"></div>' +
-    '<section class="section"><h2 class="h2">¿A dónde va?</h2><div class="stack-s">' +
-    dest('bandeja', 'Bandeja (la clasifico después)') + dest('nueva', 'Idea nueva') +
-    (ideas.length ? dest('existente', 'Añadir a una idea existente') : '') + dest('escena', 'Fragmento para el taller de cine') + '</div>' +
-    (c.dest === 'nueva' ? '<div class="chips">' + S.settings.sectors.map((s) => chip(s, { on: c.sectors.includes(s), color: sectorColor(s), data: { act: 'capSector', sector: s } })).join('') + '<button type="button" class="chip ghost" data-act="addSector">+ Sector</button></div>' : '') +
-    (c.dest === 'existente' ? field('Idea', '<select id="cap-idea">' + ideas.map((i) => '<option value="' + i.id + '" ' + (c.ideaId === i.id ? 'selected' : '') + '>' + esc(ideaTitle(i)) + '</option>').join('') + '</select>') : '') +
-    (c.dest === 'escena' ? field('Tipo de fragmento', '<select id="cap-kind">' + FRAG_KINDS.map((k) => '<option value="' + k.id + '" ' + (c.kind === k.id ? 'selected' : '') + '>' + esc(k.label) + '</option>').join('') + '</select>') : '') +
+  const anchor = c.anchorId && byId('ideas', c.anchorId);
+  const hasIdeas = S.ideas.some((i) => i.stage !== 'archivada');
+  onMount(() => {
+    fitInk();
+    const t = $('#hoja-title'); if (t && !c.title && !c.text && c.dest === 'nueva') t.focus();
+    if (c.dest === 'anclar') MAP.mount($('#anchor-map'), { edit: false, picked: c.anchorId, onTap: (id) => { syncCapFields(); c.anchorId = id; MAP.pick(id); updateAnchorLabel(); } });
+  });
+  return topbar({ title: '', back: '#/', actions: '<button class="btn small-btn" data-act="capSave">' + (c.dest === 'anclar' ? 'Anclar' : 'Guardar') + '</button>' }) +
+    (c.dest === 'cuaderno' ? hojaHtml('cap', c.title, c.text, '', '', c.ink).replace('class="ink-fab"', 'class="ink-fab" style="display:none"') : hojaHtml('cap', c.title, c.text, '', '', c.ink)) +
+    '<div class="thumbs" id="cap-photos">' + c.photos.map((p) => '<span class="thumb"><img alt="" data-blob="' + p + '"></span>').join('') +
+    '<label class="thumb add">' + icon('camera') + '<span>Foto</span><input type="file" accept="image/*" multiple hidden data-change="capPhotos"></label></div>' +
+    '<section class="section"><h2 class="h2">¿A dónde va?</h2><div class="seg2" role="group">' +
+    '<button type="button" class="seg2-btn" aria-pressed="' + (c.dest === 'nueva') + '" data-act="capDest" data-dest="nueva">Idea nueva</button>' +
+    (hasIdeas ? '<button type="button" class="seg2-btn" aria-pressed="' + (c.dest === 'anclar') + '" data-act="capDest" data-dest="anclar">Anclar</button>' : '') +
+    '<button type="button" class="seg2-btn" aria-pressed="' + (c.dest === 'cuaderno') + '" data-act="capDest" data-dest="cuaderno">Cuaderno</button></div>' +
+    (c.dest === 'cuaderno' ? '<p class="small muted">Irá a tu <strong>Cuaderno</strong> privado: no aparece en el mapa ni se envía a la IA. Ahí eliges si es poema, pensamiento o algo para terapia.</p>' : '') +
+    (c.dest === 'anclar' ? '<div id="anchor-map" class="map-stage anchor-map"></div><p class="small muted" id="anchor-label">' + (anchor ? 'Se anclará a <strong>' + esc(ideaTitle(anchor)) + '</strong>' : 'Toca la canica donde quieres anclarla.') + '</p>' : '') +
     '</section><p class="small muted row gap-s">' + icon('lock', 14) + 'Se guarda solo en este dispositivo.</p>';
+}
+
+function updateAnchorLabel() {
+  const el = $('#anchor-label'); const a = byId('ideas', UI.cap.anchorId);
+  if (el && a) el.innerHTML = 'Se anclará a <strong>' + esc(ideaTitle(a)) + '</strong>';
 }
 
 function syncCapFields() {
   const c = UI.cap; if (!c) return;
-  const t = $('#cap-text'); if (t) c.text = t.value;
-  const l = $('#cap-link'); if (l) c.link = l.value;
-  const i = $('#cap-idea'); if (i) c.ideaId = i.value;
-  const k = $('#cap-kind'); if (k) c.kind = k.value;
+  const t = $('#hoja-title'); if (t) c.title = t.value;
+  const b = $('#hoja-body'); if (b) c.text = b.value;
 }
 
-let capTimer;
-function updateCapSuggest() {
-  clearTimeout(capTimer);
-  capTimer = setTimeout(() => {
-    const box = $('#cap-sugg'); const t = $('#cap-text');
-    if (!box || !t) return;
-    const sims = t.value.trim().length > 12 ? similarIdeas(t.value, null, 2) : [];
-    box.innerHTML = sims.length ? '<div class="card soft-card"><p class="small strong row gap-s">' + icon('spark', 14) + 'Se parece a ideas que ya tienes</p>' +
-      sims.map((x) => '<div class="row gap list-row"><span class="grow">' + esc(ideaTitle(x.idea)) + ' · <span class="muted small">' + esc(stageLabel(x.idea.stage)) + '</span></span><button class="btn small-btn" data-act="capPickIdea" data-id="' + x.idea.id + '">Añadir ahí</button></div>').join('') + '</div>' : '';
-  }, 350);
-}
-
+/* Divide un texto en título (primera oración o línea) y cuerpo. */
 function splitTitle(text) {
-  const t = text.trim();
-  const first = t.split('\n')[0].trim();
-  if (first.length <= 90) return { title: first, body: t.slice(first.length).trim() };
-  return { title: first.slice(0, 70).replace(/\s+\S*$/, '') + '…', body: t };
+  const t = String(text || '').trim();
+  const nl = t.indexOf('\n');
+  const m = t.match(/^(.+?[.!?…])(\s|$)/);
+  let title;
+  if (m && (nl < 0 || m[1].length < nl)) title = m[1]; else title = nl >= 0 ? t.slice(0, nl) : t;
+  title = title.trim();
+  if (title.length > 90) title = title.slice(0, 70).replace(/\s+\S*$/, '') + '…';
+  const body = title.endsWith('…') ? t : t.slice(title.length).trim();
+  return { title, body };
 }
 
 async function appendCaptureToIdea(idea, cap) {
   const stamp = fmtDate(new Date(cap.createdAt || Date.now()), { day: 'numeric', month: 'short' });
-  if (cap.text) idea.body = (idea.body ? idea.body + '\n\n' : '') + '— Captura ' + stamp + ':\n' + cap.text;
+  const text = [cap.title, cap.text].filter((x) => x && x.trim()).join('\n');
+  if (text) idea.body = (idea.body ? idea.body + '\n\n' : '') + '— ' + stamp + ':\n' + text;
   if (cap.link) idea.links.push({ url: cap.link, label: '' });
   if (cap.photos && cap.photos.length) idea.photos = idea.photos.concat(cap.photos);
   await persist('ideas', idea);
 }
 
 Object.assign(ACTIONS, {
-  capSector(el) { syncCapFields(); const s = el.dataset.sector; const c = UI.cap; c.sectors = c.sectors.includes(s) ? c.sectors.filter((x) => x !== s) : c.sectors.concat(s); rerender(); },
-  capPickIdea(el) { syncCapFields(); UI.cap.dest = 'existente'; UI.cap.ideaId = el.dataset.id; rerender(); },
+  capDest(el) { syncCapFields(); UI.cap.dest = el.dataset.dest; rerender(); },
   async capSave() {
     syncCapFields();
     const c = UI.cap;
-    if (!c.text.trim() && !c.link.trim() && !c.photos.length) { toast('Escribe algo o añade una foto'); return; }
-    const cap = { id: uid(), text: c.text.trim(), link: c.link.trim(), photos: c.photos.slice(), createdAt: nowISO() };
+    const hasInk = c.ink && c.ink.strokes && c.ink.strokes.length;
+    if (!c.title.trim() && !c.text.trim() && !c.photos.length && !hasInk) { toast('Escribe, dibuja o añade una foto'); return; }
     let target = '#/';
-    if (c.dest === 'bandeja') {
-      await addItem('inbox', cap); toast('Guardado en la bandeja');
-    } else if (c.dest === 'nueva') {
-      const st = splitTitle(cap.text || cap.link || 'Idea con foto');
-      const idea = newIdea({ title: st.title, body: st.body, sectors: c.sectors.slice(), links: cap.link ? [{ url: cap.link, label: '' }] : [], photos: cap.photos });
-      await addItem('ideas', idea); toast('Idea creada'); target = '#/idea/' + idea.id;
-    } else if (c.dest === 'existente') {
-      const idea = byId('ideas', c.ideaId) || S.ideas[0];
-      await appendCaptureToIdea(idea, cap); toast('Añadido a la idea'); target = '#/idea/' + idea.id;
+    if (c.dest === 'cuaderno') {
+      if (!c.title.trim() && !c.text.trim()) { toast('El cuaderno guarda texto: escribe algo'); return; }
+      const e = newJournal({ kind: 'pensamiento', text: [c.title.trim(), c.text.trim()].filter(Boolean).join('\n') });
+      await addItem('journal', e);
+      if (c.photos.length || hasInk) toast('Guardado en el cuaderno (las fotos y dibujos no se guardan ahí)'); else toast('Guardado en el cuaderno');
+      resetCapture(); go('#/nota/' + e.id); return;
+    }
+    if (c.dest === 'anclar') {
+      const idea = byId('ideas', c.anchorId);
+      if (!idea) { toast('Toca la canica donde quieres anclarla'); return; }
+      const cap = { title: c.title.trim(), text: c.text.trim(), photos: c.photos.slice(), createdAt: nowISO() };
+      if (hasInk) {
+        const id = uid();
+        await DB.put('blobs', { id, data: inkToPng(c.ink), owner: 'ideas|' + idea.id, createdAt: nowISO(), updatedAt: nowISO() });
+        cap.photos.push(id);
+      }
+      await appendCaptureToIdea(idea, cap); toast('Anclada a ' + ideaTitle(idea)); target = '#/idea/' + idea.id;
     } else {
-      const st = splitTitle(cap.text || 'Fragmento');
-      const fr = newFragment({ kind: c.kind, title: st.title, text: st.body || cap.text, photos: cap.photos });
-      await addItem('fragments', fr); toast('Fragmento creado'); target = '#/frag/' + fr.id;
+      let title = c.title.trim(); let body = c.text.trim();
+      if (!title && body) { const st = splitTitle(body); title = st.title; body = st.body; }
+      const idea = newIdea({ title, body, photos: c.photos.slice(), ink: hasInk ? c.ink : null });
+      await addItem('ideas', idea); toast('Idea sembrada'); target = '#/idea/' + idea.id;
     }
     resetCapture();
     go(target);
@@ -384,7 +368,6 @@ Object.assign(ACTIONS, {
 });
 
 Object.assign(CHANGES, {
-  capDest(el) { syncCapFields(); UI.cap.dest = el.value; rerender(); },
   async capPhotos(el) { syncCapFields(); toast('Guardando fotos…'); const ids = await storePhotos(el.files, 'inbox'); UI.cap.photos = UI.cap.photos.concat(ids); rerender(); }
 });
 

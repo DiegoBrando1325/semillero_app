@@ -1,6 +1,29 @@
-# Semillero 0.1
+# Semillero 0.3
 
 Semillero es una app personal para madurar ideas hasta convertirlas en proyectos. Incluye un taller de cine para escenas, diálogos y tramas. Funciona en iPhone como app instalada (PWA), sin servidores y sin cuentas. Tus datos viven solo en tu dispositivo.
+
+## Novedades de la 0.3
+
+- **Botón central para crear.** La barra es **Inicio · Jardín · (+) · Mapa · Cuaderno**. El (+) abre la captura desde cualquier pantalla.
+- **Canicas del color de sus tags.** Cada tag tiene su color y la canica mezcla los colores de todos sus tags; sin tags es gris cálido. Junto a "Tags" en la hoja ves cómo queda su canica.
+- **Mapa en beige claro** (en modo oscuro, café oscuro), con una leyenda de colores. El mapa se centra en el espacio libre entre el encabezado y el texto de ayuda.
+- **Cuaderno privado.** Poemas, pensamientos y temas para terapia:
+  - "Para mi próxima sesión" junta los temas pendientes; eliges la fecha, marcas lo que hablaste y tocas "Ya fui a la sesión". Queda un historial de sesiones.
+  - Cada tema puede marcarse como hablado y guardar "qué te llevaste".
+  - Un calendario del mes muestra qué días escribiste.
+  - No aparece en el mapa, no se conecta con ideas y nunca se envía a la IA. Sí entra en los respaldos cifrados y en la exportación a Markdown.
+- Al capturar hay una tercera opción: **Cuaderno**.
+- **Datos:** la base de datos pasa a la versión 2 solo para agregar el cuaderno; tus ideas, obras y ajustes de la 0.2 no se tocan.
+- **Arreglos:** la fila de "Recientes" ya no ensancha la página (empujaba la barra fuera de la pantalla) y el lápiz flotante ya no tapa lo último de la página.
+
+## Novedades de la 0.2
+
+- **Hoja única.** El título y la nota van en la misma página, como en Notas de iOS. La primera oración se vuelve el título.
+- **Dibujo directo.** Con el lápiz flotante, con el Apple Pencil o agitando el teléfono, rayas sobre la hoja.
+- **Mapa de canicas.** Cada idea es una canica. Si acercas dos, se unen con un lazo, y se permiten relaciones de muchas a muchas. Si avientas una, queda sola y orbita la estructura más pesada. Para cortar un lazo, tócalo.
+- **Links con vista previa.** Los links que escribes en la hoja aparecen en un marco flotante (usa microlink.io).
+- **Navegación más simple:** Jardín · Inicio · Mapa. Al capturar solo eliges entre "Idea nueva" y "Anclar a una idea" (la eliges desde el mapa).
+- La IA y las preguntas guía están apagadas por ahora.
 
 ## Lo que hace
 
@@ -69,6 +92,7 @@ Es JavaScript sin dependencias ni paso de compilación:
 | `js/ai.js` | Llamadas a la API de Claude y los prompts de cada modo |
 | `js/fountain.js` | Lector de Fountain para la vista de guion |
 | `js/core.js` | Estado, utilidades, navegación y componentes |
+| `js/views-journal.js` | Cuaderno privado |
 | `js/views-*.js` | Pantallas: ideas, agenda, taller de cine y ajustes |
 | `js/app.js` | Eventos y arranque |
 | `sw.js` | Uso sin internet |

@@ -16,7 +16,7 @@ function onField(e) {
   const isToggle = el.type === 'checkbox' || el.tagName === 'SELECT';
   if (e.type === 'input') {
     if (el.matches('textarea.autosize')) autosize(el);
-    if (el.id === 'cap-text') updateCapSuggest();
+    if (el.id === 'hoja-title') splitHojaTitle(el);
     if (el.id === 'idea-search') { UI.ideaFilter.q = el.value; renderIdeaList(); }
     if (isToggle) return;
   }

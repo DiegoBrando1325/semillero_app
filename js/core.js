@@ -7,6 +7,7 @@ const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&':
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
 const nowISO = () => new Date().toISOString();
 const DAY = 86400000;
+const AI_ON = false;  /* la IA queda apagada por ahora; el código sigue en js/ai.js */
 const ACTIONS = {};   /* clic: data-act="nombre" */
 const CHANGES = {};   /* cambio de select/archivo: data-change="nombre" */
 const HOOKS = {};     /* después de editar un campo: "store.campo" */
@@ -45,7 +46,9 @@ const QUESTION_SETS = {
   }
 };
 
-const PALETTE = ['#7A4FB0', '#3C5FA8', '#C2410C', '#0F766E', '#4D7C0F', '#475569', '#BE185D', '#92400E', '#0369A1', '#A16207'];
+const PALETTE = ['#8E6BD8', '#4F7BD6', '#D98A3D', '#E06B5A', '#6C7A89', '#D46A9A', '#3FA3B5', '#5FA873', '#B5893A', '#7C8F3E'];
+/* Color fijo de cada tag: las canicas mezclan los colores de sus tags. */
+const TAG_COLORS = { 'Cine': '#8E6BD8', 'Libros': '#4F7BD6', 'Filosofía': '#D98A3D', 'Ing. biomédica': '#E06B5A', 'Matemáticas': '#6C7A89', 'Ciencias sociales': '#D46A9A', 'Tecnología': '#3FA3B5', 'Agricultura': '#5FA873' };
 const DEFAULT_SECTORS = ['Cine', 'Libros', 'Filosofía', 'Ing. biomédica', 'Matemáticas', 'Ciencias sociales', 'Tecnología', 'Agricultura'];
 const CREATIVE_SECTORS = ['Cine', 'Libros'];
 
@@ -61,15 +64,15 @@ const fragKindLabel = (id) => (FRAG_KINDS.find((k) => k.id === id) || FRAG_KINDS
 const ADAPT_STATUS = ['Idea', 'Borrador', 'En revisión', 'Terminado'];
 
 /* ---------- Estado en memoria, respaldado en IndexedDB ---------- */
-const S = { ideas: [], inbox: [], sessions: [], works: [], fragments: [], adaptations: [], settings: null };
+const S = { journal: [], ideas: [], inbox: [], sessions: [], works: [], fragments: [], adaptations: [], settings: null };
 const UI = { ideaFilter: { q: '', stage: 'activas', sector: '' }, aiMode: 'diablo', adaptTab: 'editar', fragTab: 'editar' };
 
 function defaultSettings() {
-  return { id: 'main', name: '', apiKey: '', model: 'claude-sonnet-5-5', sectors: DEFAULT_SECTORS.slice(), lastBackup: null, lastReview: null, createdAt: nowISO() };
+  return { id: 'main', name: '', apiKey: '', model: 'claude-sonnet-5-5', sectors: DEFAULT_SECTORS.slice(), lastBackup: null, lastReview: null, nextTherapy: '', therapyLog: [], createdAt: nowISO() };
 }
 
 async function loadState() {
-  for (const k of ['ideas', 'inbox', 'sessions', 'works', 'fragments', 'adaptations']) S[k] = await DB.all(k);
+  for (const k of ['ideas', 'inbox', 'sessions', 'works', 'fragments', 'adaptations', 'journal']) S[k] = await DB.all(k);
   S.settings = Object.assign(defaultSettings(), (await DB.get('settings', 'main')) || {});
 }
 
@@ -121,7 +124,8 @@ function newIdea(fields) {
   return Object.assign({
     id: uid(), title: '', body: '', stage: 'semilla', sectors,
     qset: sectors.some((s) => CREATIVE_SECTORS.includes(s)) ? 'creativa' : 'general',
-    answers: {}, links: [], photos: [], related: [], chat: [], aiAllowed: true
+    answers: {}, links: [], photos: [], related: [], chat: [], aiAllowed: true,
+    ink: null, previews: {}, mapPos: null
   }, fields || {});
 }
 
@@ -132,6 +136,7 @@ function maturity(idea) {
 }
 
 function sectorColor(name) {
+  if (TAG_COLORS[name]) return TAG_COLORS[name];
   const i = S.settings.sectors.indexOf(name);
   return PALETTE[(i < 0 ? name.length : i) % PALETTE.length];
 }
@@ -195,6 +200,7 @@ function relDays(iso) {
 
 /* ---------- Íconos ---------- */
 const ICONS = {
+  book: '<path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5z"/><path d="M5 19.5A1.5 1.5 0 0 0 6.5 21H19v-3"/><path d="M9 7h6"/>',
   back: '<path d="m15 18-6-6 6-6"/>',
   chevron: '<path d="m9 18 6-6-6-6"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
@@ -244,11 +250,36 @@ function sectorTags(sectors) {
 }
 
 function ideaCard(idea) {
-  const m = maturity(idea);
-  return '<a class="card idea-card" href="#/idea/' + idea.id + '">' +
-    '<div class="row between"><strong class="idea-card-title">' + esc(ideaTitle(idea)) + '</strong>' + stagePill(idea.stage) + '</div>' +
-    '<div class="tags">' + sectorTags(idea.sectors) + '</div>' +
-    '<div class="row between small muted"><span class="meter" aria-label="Madurez ' + m.pct + '%"><span style="width:' + m.pct + '%"></span></span><span>' + m.pct + '% · ' + relDays(idea.updatedAt) + '</span></div></a>';
+  const snippet = (idea.body || '').replace(/\s+/g, ' ').trim().slice(0, 110);
+  return '<a class="card idea-card row gap" href="#/idea/' + idea.id + '">' + orbHtml(idea, 'sm') +
+    '<span class="grow"><span class="row between"><strong class="idea-card-title ellipsis">' + esc(ideaTitle(idea)) + '</strong>' + stagePill(idea.stage) + '</span>' +
+    (snippet ? '<span class="small muted clamp2">' + esc(snippet) + '</span>' : '') +
+    '<span class="tags">' + sectorTags(idea.sectors) + '</span></span></a>';
+}
+
+/* Canica: vista previa de lo que hay dentro de una idea (foto, boceto, link o texto). */
+function orbInner(idea) {
+  if (idea.photos && idea.photos[0]) return '<img alt="" data-blob="' + idea.photos[0] + '">';
+  if (idea.ink && idea.ink.strokes && idea.ink.strokes.length) return inkMini(idea.ink);
+  const pv = typeof firstPreviewImage === 'function' ? firstPreviewImage(idea) : '';
+  if (pv) return '<img alt="" class="ext-img" referrerpolicy="no-referrer" src="' + esc(pv) + '">';
+  return '<span class="orb-glyph">' + esc(ideaTitle(idea).trim().charAt(0).toUpperCase()) + '</span>';
+}
+/* Fondo de la canica: mezcla de los colores de sus tags (gris cálido si no tiene). */
+function orbBg(idea) {
+  const cs = Array.from(new Set((idea.sectors || []).map(sectorColor)));
+  const base = !cs.length ? 'radial-gradient(circle at 50% 50%, #CFC8BA, #9F978A)'
+    : cs.length === 1 ? 'radial-gradient(circle at 50% 50%, ' + cs[0] + ', ' + cs[0] + ')'
+    : 'linear-gradient(135deg, ' + cs.join(', ') + ')';
+  return 'radial-gradient(circle at 50% 118%, rgba(0,0,0,.28), transparent 62%), ' + base;
+}
+function orbHtml(idea, size) {
+  const style = ' style="--orb-bg:' + orbBg(idea) + '"';
+  if (size === 'xs') return '<span class="orb xs" aria-hidden="true"' + style + '></span>';
+  if (size === 'map' && !(idea.photos && idea.photos[0]) && !(idea.ink && idea.ink.strokes && idea.ink.strokes.length) && !(typeof firstPreviewImage === 'function' && firstPreviewImage(idea))) {
+    return '<span class="orb map"' + style + '><span class="orb-glyph">' + esc(ideaTitle(idea).trim().charAt(0).toUpperCase()) + '</span></span>';
+  }
+  return '<span class="orb ' + (size || '') + '"' + style + '>' + orbInner(idea) + '</span>';
 }
 
 function emptyState(title, text, action) {
@@ -271,13 +302,16 @@ function closeSheet() {
 }
 
 let toastTimer;
-function toast(msg) {
+let toastAction = null;
+function toast(msg, action) {
   const t = $('#toast');
-  t.textContent = msg;
+  toastAction = action || null;
+  t.innerHTML = esc(msg) + (action ? ' <button type="button" class="toast-btn" data-act="toastAction">' + esc(action.label) + '</button>' : '');
   t.hidden = false;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { t.hidden = true; }, 2600);
+  toastTimer = setTimeout(() => { t.hidden = true; toastAction = null; }, action ? 6000 : 2600);
 }
+ACTIONS.toastAction = () => { const a = toastAction; $('#toast').hidden = true; toastAction = null; if (a) return a.fn(); };
 
 function autosize(el) {
   el.style.height = 'auto';
@@ -351,7 +385,7 @@ async function fillPhotos(root) {
 
 /* ---------- Navegación ---------- */
 const ROUTES = [];
-const route = (re, fn, tab) => ROUTES.push({ re, fn, tab });
+const route = (re, fn, tab, full) => ROUTES.push({ re, fn, tab, full: !!full });
 let mounts = [];
 const onMount = (fn) => mounts.push(fn);
 
@@ -362,6 +396,9 @@ function render(keepScroll) {
   const r = ROUTES.find((x) => x.re.test(path)) || ROUTES[0];
   const params = path.match(r.re).slice(1);
   mounts = [];
+  if (typeof MAP !== 'undefined') MAP.stop();
+  if (typeof INK !== 'undefined' && INK.on) inkStop();
+  document.body.classList.toggle('full-bleed', r.full);
   let html;
   try { html = r.fn.apply(null, params.concat([new URLSearchParams(qs || '')])); } catch (e) { console.error(e); html = emptyState('Algo salió mal', e.message || String(e), '<a class="btn" href="#/">Volver al inicio</a>'); }
   $('#view').innerHTML = html;

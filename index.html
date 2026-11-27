@@ -8,12 +8,12 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Semillero">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' https://api.anthropic.com; object-src 'none'; base-uri 'self'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' https://api.anthropic.com https://api.microlink.io; object-src 'none'; base-uri 'self'; form-action 'none'">
 <title>Semillero</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="styles.css?v=0.3.0">
 </head>
 <body>
 <main id="view" aria-live="polite"></main>
@@ -25,18 +25,18 @@
   </a>
   <a href="#/ideas" data-tab="ideas">
     <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 21v-9"/><path d="M12 12C12 7 8 4 3 4c0 5 4 8 9 8z"/><path d="M12 14c0-4 3-7 8-7 0 4-3 7-8 7z"/></svg>
-    <span>Ideas</span>
+    <span>Jardín</span>
   </a>
-  <a href="#/capture" class="tab-capture" aria-label="Capturar idea">
+  <a href="#/capture" class="tab-new" aria-label="Nueva idea">
     <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
   </a>
-  <a href="#/cine" data-tab="cine">
-    <svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="14" rx="2"/><path d="m3 7 3-4h4l-3 4M10 7l3-4h4l-3 4M17 7l3-4"/></svg>
-    <span>Cine</span>
+  <a href="#/mapa" data-tab="mapa">
+    <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="6" cy="7" r="3"/><circle cx="18" cy="9" r="3"/><circle cx="11" cy="18" r="3"/><path d="M8.6 8.4 9.8 15.3M8.9 6.6l6.2 1.6M16.4 11.6l-3.6 4.2"/></svg>
+    <span>Mapa</span>
   </a>
-  <a href="#/agenda" data-tab="agenda">
-    <svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-    <span>Agenda</span>
+  <a href="#/cuaderno" data-tab="cuaderno">
+    <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5z"/><path d="M5 19.5A1.5 1.5 0 0 0 6.5 21H19v-3"/><path d="M9 7h6"/></svg>
+    <span>Cuaderno</span>
   </a>
 </nav>
 
@@ -55,15 +55,19 @@
 
 <div id="toast" class="toast" role="status" hidden></div>
 
-<script src="js/db.js"></script>
-<script src="js/vault.js"></script>
-<script src="js/ai.js"></script>
-<script src="js/fountain.js"></script>
-<script src="js/core.js"></script>
-<script src="js/views-ideas.js"></script>
-<script src="js/views-agenda.js"></script>
-<script src="js/views-cine.js"></script>
-<script src="js/views-settings.js"></script>
-<script src="js/app.js"></script>
+<script src="js/db.js?v=0.3.0"></script>
+<script src="js/vault.js?v=0.3.0"></script>
+<script src="js/ai.js?v=0.3.0"></script>
+<script src="js/fountain.js?v=0.3.0"></script>
+<script src="js/core.js?v=0.3.0"></script>
+<script src="js/ink.js?v=0.3.0"></script>
+<script src="js/links.js?v=0.3.0"></script>
+<script src="js/views-ideas.js?v=0.3.0"></script>
+<script src="js/views-agenda.js?v=0.3.0"></script>
+<script src="js/views-cine.js?v=0.3.0"></script>
+<script src="js/views-settings.js?v=0.3.0"></script>
+<script src="js/views-journal.js?v=0.3.0"></script>
+<script src="js/map.js?v=0.3.0"></script>
+<script src="js/app.js?v=0.3.0"></script>
 </body>
 </html>

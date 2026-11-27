@@ -3,8 +3,8 @@
 
 const DB = (() => {
   const NAME = 'semillero';
-  const VERSION = 1;
-  const STORES = ['ideas', 'inbox', 'sessions', 'works', 'fragments', 'adaptations', 'blobs', 'settings'];
+  const VERSION = 2; /* 2: se agrega el cuaderno (journal); los datos existentes no se tocan */
+  const STORES = ['ideas', 'inbox', 'sessions', 'works', 'fragments', 'adaptations', 'blobs', 'settings', 'journal'];
   let dbPromise = null;
 
   function open() {

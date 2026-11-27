@@ -158,7 +158,7 @@ function viewFrag(id) {
   html += field('Obra', '<select data-change="fragWork" data-id="' + id + '"><option value="">Fragmento suelto</option>' + S.works.map((w) => '<option value="' + w.id + '"' + (w.id === f.workId ? ' selected' : '') + '>' + esc(w.title || 'Obra sin título') + '</option>').join('') + '<option value="__new">+ Nueva obra con este fragmento</option></select>');
 
   html += aiTools('frag', id, ['aEscena', 'aProsa', 'dialogo', 'variaciones'], f.aiAllowed);
-  html += '<label class="switch"><input type="checkbox" ' + (f.aiAllowed ? 'checked ' : '') + fld('aiAllowed') + '><span>Permitir que la IA lea este fragmento</span></label>';
+  if (AI_ON) html += '<label class="switch"><input type="checkbox" ' + (f.aiAllowed ? 'checked ' : '') + fld('aiAllowed') + '><span>Permitir que la IA lea este fragmento</span></label>';
   html += '<section class="section"><button class="btn danger-ghost" data-act="deleteFrag" data-id="' + id + '">Eliminar fragmento</button></section>';
   return html;
 }
@@ -169,6 +169,7 @@ function scriptToolbar(targetId) {
 }
 
 function aiTools(scope, id, actions, allowed) {
+  if (!AI_ON) return '';
   if (!S.settings.apiKey) return '<section class="section card soft-card"><p class="small">' + icon('spark', 14) + ' Conecta la API de Claude en <a href="#/settings">Ajustes</a> para adaptar, revisar diálogos y generar borradores.</p></section>';
   if (!allowed) return '<section class="section card soft-card"><p class="small">' + icon('lock', 14) + ' La IA está desactivada para este elemento.</p></section>';
   return '<section class="section card soft-card"><h2 class="h2">' + icon('spark', 16) + ' Asistente de escritura</h2><div class="chips">' +

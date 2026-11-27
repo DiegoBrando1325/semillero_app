@@ -28,6 +28,14 @@ function viewSettings() {
 
   html += '<section class="section">' + field('Tu nombre', '<input type="text" autocomplete="given-name" value="' + esc(st.name) + '" ' + fld('name') + '>') + '</section>';
 
+  html += '<section class="section card"><h2 class="h2">Dibujo</h2>' +
+    '<label class="switch"><input type="checkbox" ' + (st.shake !== false ? 'checked ' : '') + fld('shake') + '><span>Agitar el teléfono para dibujar en la hoja</span></label>' +
+    '<button class="btn ghost small-btn" data-act="enableMotion">Activar sensor de movimiento</button>' +
+    '<p class="small muted">iPhone pide permiso una vez. También puedes tocar el lápiz o rayar directo con Apple Pencil.</p></section>';
+
+  html += '<section class="section card"><h2 class="h2">Vistas previas de links</h2><p class="small">Cuando escribes un link en una hoja, Semillero le pide a microlink.io el título y la imagen de esa página. Solo se envía la dirección del link, nunca tu nota. Si no hay internet, el link se muestra sin imagen.</p></section>';
+
+  if (AI_ON) {
   html += '<section class="section card"><h2 class="h2">' + icon('spark', 18) + ' Inteligencia artificial (opcional)</h2>' +
     '<p class="small">Semillero usa tu propia clave de la API de Claude. La clave se guarda solo en este dispositivo y las consultas van directo de tu teléfono a Anthropic, sin servidores intermedios.</p>' +
     field('Clave de API', '<div class="row gap"><input id="api-key" class="grow" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="sk-ant-…" value="' + esc(st.apiKey) + '" ' + fld('apiKey') + '>' +
@@ -36,6 +44,8 @@ function viewSettings() {
       (AI.MODELS.some((m) => m.id === st.model) ? '' : '<option value="' + esc(st.model) + '" selected>' + esc(st.model) + '</option>') + '</select>') +
     '<div class="row gap wrap"><button class="btn ghost" data-act="testAI">Probar conexión</button><button class="btn ghost" data-act="customModel">Usar otro modelo</button></div>' +
     '<p class="small muted">Cada idea y fragmento tiene un interruptor para impedir que la IA lo lea. Las fotos nunca se envían. En la <a href="https://console.anthropic.com" target="_blank" rel="noopener noreferrer">consola de Anthropic</a> puedes fijar un límite de gasto mensual.</p></section>';
+
+  }
 
   html += '<section class="section card"><h2 class="h2">' + icon('lock', 18) + ' Respaldos</h2>' +
     '<p class="small">Tus datos viven en este teléfono. Haz respaldos cifrados y guárdalos en iCloud Drive, Google Drive o tu computadora: si pierdes el teléfono, los restauras en otro dispositivo.</p>' +
@@ -53,7 +63,7 @@ function viewSettings() {
     '<button class="btn ghost small-btn" data-act="persistStorage">Pedir almacenamiento permanente</button></section>';
 
   html += '<section class="section card danger-card"><h2 class="h2">Zona de peligro</h2><p class="small">Borra todas las ideas, obras, fotos y ajustes de este dispositivo.</p><button class="btn danger-ghost" data-act="wipeAll">Borrar todo</button></section>';
-  html += '<p class="small muted center">Semillero 0.1 · Sin servidores, sin cuentas, sin rastreo.</p>';
+  html += '<p class="small muted center">Semillero 0.2 · Sin servidores, sin cuentas, sin rastreo.</p>';
   return html;
 }
 
@@ -76,11 +86,20 @@ async function exportMarkdown() {
   });
   const loose = S.fragments.filter((f) => !f.workId);
   if (loose.length) { lines.push('### Fragmentos sueltos', ''); loose.forEach((f) => lines.push('#### ' + fragKindLabel(f.kind) + ': ' + fragTitle(f), '', f.text || '', '')); }
+  if (S.journal && S.journal.length) {
+    lines.push('## Cuaderno', '');
+    S.journal.slice().sort((a, b) => a.createdAt.localeCompare(b.createdAt)).forEach((e) => {
+      lines.push('### ' + journalKind(e.kind).label + ' · ' + localDate(new Date(e.createdAt)) + (e.title ? ': ' + e.title : ''), '', e.text || '', '');
+      if (e.kind === 'terapia') lines.push('Estado: ' + (e.status === 'hablado' ? 'hablado' + (e.talkedAt ? ' el ' + e.talkedAt : '') : 'pendiente'), '');
+      if (e.takeaway) lines.push('Lo que me llevé: ' + e.takeaway, '');
+    });
+  }
   if (S.inbox.length) { lines.push('## Bandeja', ''); S.inbox.forEach((c) => lines.push('- ' + (c.text || c.link).replace(/\n/g, ' '))); }
   return lines.join('\n');
 }
 
 Object.assign(ACTIONS, {
+  async enableMotion() { const ok = await ensureMotion(); toast(ok ? 'Listo: agita el teléfono en una hoja para dibujar' : 'El navegador no dio permiso al sensor'); },
   toggleKey(el) { const i = $('#api-key'); i.type = i.type === 'password' ? 'text' : 'password'; el.textContent = i.type === 'password' ? 'Ver' : 'Ocultar'; },
   async testAI(el) {
     el.disabled = true; el.textContent = 'Probando…';
