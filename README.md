@@ -1,6 +1,19 @@
-# Semillero 0.3
+# Semillero 0.4
 
 Semillero es una app personal para madurar ideas hasta convertirlas en proyectos. Incluye un taller de cine para escenas, diálogos y tramas. Funciona en iPhone como app instalada (PWA), sin servidores y sin cuentas. Tus datos viven solo en tu dispositivo.
+
+## Novedades de la 0.4
+
+- **Núcleos (proyectos).** Un núcleo es un proyecto al que atas ideas distintas que sirven a lo mismo. Tiene objetivo, siguiente paso, estado (activo, en pausa, terminado) y sesiones en la agenda. Una idea puede estar en varios núcleos; uno es el principal (línea sólida en el mapa) y los demás se ven con línea punteada. Puedes convertir una idea en núcleo, y en el mapa basta con acercar una canica a un núcleo para atarla.
+- **Preguntas como lunas.** Cada idea puede tener preguntas abiertas. En el mapa orbitan su canica como lunas; al responderlas se vuelven doradas. Si capturas algo que termina en "?", la app te ofrece guardarlo como luna de una idea.
+- **Borrador automático.** Lo que escribes, dibujas o fotografías en la captura se guarda solo. Si cambias de pestaña o cierras la app, sigue ahí; el (+) muestra un punto mientras haya borrador.
+- **Convertir después de crear.** Una idea puede pasar a poema, pensamiento o tema de terapia, y volver a ser idea con sus tags y lazos.
+- **Fotos en el cuaderno.** Los poemas y pensamientos ya admiten fotos después de creados.
+- **Temperatura emocional** en los pensamientos: Helada, Fría, Templada, Cálida o Ardiente, con una tira de tu semana.
+- **El árbol del mes.** Cada pensamiento es una hoja del color de su temperatura (puedes arrastrarla a otro lugar), cada poema una liana con flor y cada tema de terapia una raíz. Los meses pasados forman tu **bosque**.
+- **Calendario arreglado.** Muestra varios tipos por día, respeta el filtro y tiñe los días según la temperatura.
+- **Tags.** 16 colores más distintos entre sí, y una pantalla para renombrar, cambiar el color, unir y borrar tags (Jardín → Editar tags, o Ajustes).
+- **Datos:** la base de datos pasa a la versión 3 solo para agregar los núcleos; lo demás no se toca.
 
 ## Novedades de la 0.3
 
@@ -92,14 +105,21 @@ Es JavaScript sin dependencias ni paso de compilación:
 | `js/ai.js` | Llamadas a la API de Claude y los prompts de cada modo |
 | `js/fountain.js` | Lector de Fountain para la vista de guion |
 | `js/core.js` | Estado, utilidades, navegación y componentes |
-| `js/views-journal.js` | Cuaderno privado |
+| `js/views-journal.js` | Cuaderno privado y calendario |
+| `js/journal-tree.js` | Árbol del mes y bosque del cuaderno |
+| `js/nuclei.js` | Núcleos (proyectos) y preguntas |
+| `js/tags.js` | Editor de tags |
+| `js/map.js` | Mapa de canicas, núcleos y lunas |
+| `js/ink.js` | Dibujo directo sobre la hoja |
+| `js/links.js` | Vistas previas de links |
 | `js/views-*.js` | Pantallas: ideas, agenda, taller de cine y ajustes |
 | `js/app.js` | Eventos y arranque |
 | `sw.js` | Uso sin internet |
 
 ## Ideas para siguientes versiones
 
-- Mapa visual (grafo) de conexiones entre ideas.
+- Candado para ideas, poemas o pensamientos elegidos.
+- Una forma de recuperar ideas cifradas si olvidas la contraseña.
 - Notas de voz grabadas dentro de la app.
 - Sincronización automática entre dispositivos usando tu propio Google Drive o iCloud.
 - Bloqueo con Face ID o código, y cifrado de los datos dentro del teléfono.

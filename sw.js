@@ -1,7 +1,7 @@
 /* Semillero — service worker: guarda la app para usarla sin internet. Tus datos no pasan por aquí. */
-const VERSION = 'semillero-v0.3.0';
+const VERSION = 'semillero-v0.4.0';
 const SHELL = [
-  './', 'index.html', 'styles.css?v=0.3.0', 'manifest.webmanifest', 'js/db.js?v=0.3.0', 'js/vault.js?v=0.3.0', 'js/ai.js?v=0.3.0', 'js/fountain.js?v=0.3.0', 'js/core.js?v=0.3.0', 'js/ink.js?v=0.3.0', 'js/links.js?v=0.3.0', 'js/map.js?v=0.3.0', 'js/views-ideas.js?v=0.3.0', 'js/views-agenda.js?v=0.3.0', 'js/views-cine.js?v=0.3.0', 'js/views-settings.js?v=0.3.0', 'js/views-journal.js?v=0.3.0', 'js/app.js?v=0.3.0', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'
+  './', 'index.html', 'styles.css?v=0.4.0', 'manifest.webmanifest', 'js/db.js?v=0.4.0', 'js/vault.js?v=0.4.0', 'js/ai.js?v=0.4.0', 'js/fountain.js?v=0.4.0', 'js/core.js?v=0.4.0', 'js/ink.js?v=0.4.0', 'js/links.js?v=0.4.0', 'js/map.js?v=0.4.0', 'js/views-ideas.js?v=0.4.0', 'js/views-agenda.js?v=0.4.0', 'js/views-cine.js?v=0.4.0', 'js/views-settings.js?v=0.4.0', 'js/views-journal.js?v=0.4.0', 'js/journal-tree.js?v=0.4.0', 'js/nuclei.js?v=0.4.0', 'js/tags.js?v=0.4.0', 'js/app.js?v=0.4.0', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'
 ];
 
 self.addEventListener('install', (e) => {

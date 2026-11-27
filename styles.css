@@ -557,3 +557,136 @@ body.full-bleed .tabbar .tab-new { background: var(--ink); color: var(--bg); bor
 main { overflow-x: clip; }
 /* Que el botón flotante del lápiz no tape lo último de la página */
 body:has(.ink-fab) main { padding-bottom: calc(var(--tabbar) + env(safe-area-inset-bottom) + 110px); }
+
+/* ===================== 0.4: tags, preguntas-luna, núcleos, borrador, cuaderno (calendario, temperatura, árbol, bosque) ===================== */
+
+/* Tags */
+.tag-row { flex-direction: row; align-items: center; gap: 12px; }
+.tag-swatch { width: 36px; height: 36px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px var(--line); cursor: pointer; flex-shrink: 0; }
+.palette { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.palette-c { aspect-ratio: 1; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 0 0 1px var(--line); cursor: pointer; position: relative; min-height: 44px; }
+.palette-c.on { box-shadow: 0 0 0 3px var(--ink); }
+.palette-used { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 14px; text-shadow: 0 1px 2px rgba(0,0,0,.4); }
+
+/* Preguntas */
+.q-row { display: flex; gap: 8px; align-items: flex-start; padding: 8px 0; border-top: 1px solid var(--line); }
+.q-row:first-child { border-top: 0; }
+.q-moon { width: 40px; height: 40px; flex-shrink: 0; border: 0; background: none; padding: 0; display: flex; align-items: center; justify-content: center; cursor: pointer; margin-top: -2px; }
+.q-text { border: 0 !important; background: transparent !important; padding: 6px 0 !important; box-shadow: none !important; font-weight: 600; min-height: 32px !important; }
+.q-answer { min-height: 40px !important; font-size: 15px; }
+.q-hint { color: #8C7A55; }
+.q-suggest { flex-direction: row; text-align: left; cursor: pointer; width: 100%; font: inherit; color: var(--ink); }
+.moon { flex-shrink: 0; }
+
+/* Núcleos */
+.nuc-orb { display: inline-block; position: relative; width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0;
+  background: radial-gradient(circle at 35% 30%, #FFFFFF, #EDE5D4 55%, #CFC3AA 100%); border: 2px solid #4A433A; box-sizing: border-box; }
+.nuc-orb::after { content: ""; position: absolute; left: -22%; right: -22%; top: 38%; height: 24%; border-radius: 50%; border: 2px solid rgba(74,67,58,.55); transform: rotate(-18deg); }
+.nuc-orb.sm { width: 34px; height: 34px; }
+.nuc-orb.xs { width: 14px; height: 14px; border-width: 1.5px; vertical-align: -2px; }
+.nuc-orb.xs::after { border-width: 1px; }
+.nuc-row { display: flex; gap: 10px; overflow-x: auto; margin: 0 -18px; padding: 2px 18px 6px; scrollbar-width: none; }
+.nuc-row::-webkit-scrollbar { display: none; }
+.nuc-card { display: flex; align-items: center; gap: 10px; min-width: 180px; padding: 12px 14px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line); color: var(--ink); text-decoration: none; }
+.nuc-card-text { display: flex; flex-direction: column; min-width: 0; }
+.nuc-card-text strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px; }
+.nuc-card-text span { font-size: 12px; color: var(--muted); }
+.nuc-member { align-items: center; }
+.nuc-member > a { min-width: 0; color: var(--ink); text-decoration: none; }
+.nuc-member > a strong { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nuc-member .pill { flex-shrink: 0; }
+.nuc-chip { max-width: 100%; min-width: 0; }
+.nuc-chip > a { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: inherit; text-decoration: none; }
+.nuc-chip .pill, .nuc-chip .link-btn, .nuc-chip .x { flex-shrink: 0; }
+.nuc-chip .pill { margin-left: 2px; }
+.pill { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 9px; background: var(--surface-2); color: var(--muted); white-space: nowrap; }
+.pill.on { background: var(--ink); color: var(--bg); }
+
+/* Núcleos y lunas en el mapa */
+.nucleo { position: absolute; left: 0; top: 0; will-change: transform; cursor: pointer; }
+.nuc-orb.map { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; border-width: 2.5px; box-shadow: 0 8px 22px rgba(90,70,40,.22); }
+.nuc-orb.map::after { border-width: 2.5px; }
+.nuc-name { position: relative; z-index: 1; padding: 0 12%; text-align: center; font-size: 12px; font-weight: 800; line-height: 1.15; color: #2D2822; }
+.nucleo.grab .nuc-orb { transform: scale(1.05); }
+.tether { fill: none; stroke: rgba(70,58,40,.7); stroke-width: 1.4; pointer-events: none; }
+.tether.sec { stroke-dasharray: 3 5; stroke: rgba(70,58,40,.5); }
+.lunas { position: absolute; left: 50%; top: 50%; width: 0; height: 0; animation: lunas-giran 60s linear infinite; }
+.luna { position: absolute; left: -16px; top: -16px; width: 32px; height: 32px; border: 0; padding: 0; background: none; cursor: pointer;
+  transform: rotate(var(--a)) translate(var(--R, 50px)); }
+.luna::before { content: ""; position: absolute; left: 8px; top: 8px; width: 16px; height: 16px; border-radius: 50%; box-sizing: border-box; box-shadow: 0 1px 3px rgba(60,45,20,.3);
+  background: radial-gradient(circle at 70% 50%, #FBF8F1 52%, #D9CDB2 53%); border: 1.5px solid #8C7A55; }
+.luna.done::before { background: radial-gradient(circle at 35% 40%, #FFF6D8, #F0DC9C); border-color: #B89A4E; box-shadow: 0 0 8px rgba(240,210,120,.7); }
+@keyframes lunas-giran { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .lunas { animation: none; } }
+.luna-ico { display: inline-block; width: 10px; height: 10px; border-radius: 50%; box-sizing: border-box; background: radial-gradient(circle at 70% 50%, #FBF8F1 52%, #D9CDB2 53%); border: 1.5px solid #8C7A55; }
+.luna-ico.done { background: #F6E7B0; border-color: #B89A4E; }
+.moon-card { position: absolute; z-index: 5; left: 14px; right: 14px; bottom: calc(var(--tabbar) + env(safe-area-inset-bottom) + 70px);
+  background: var(--surface); border: 1px solid #E6DDCB; border-radius: 18px; padding: 12px 14px; box-shadow: 0 12px 30px rgba(90,70,40,.2);
+  display: flex; flex-direction: column; gap: 8px; color: var(--ink); }
+.moon-card[hidden] { display: none; }
+.eyebrow-s { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #8C7A55; }
+
+/* Borrador */
+.tab-new { position: relative; }
+.tab-new.has-draft::after { content: ""; position: absolute; top: 4px; right: 4px; width: 12px; height: 12px; border-radius: 50%; background: #E0573E; border: 2px solid var(--surface); }
+.draft-note { background: var(--accent-soft); border-radius: 12px; padding: 6px 12px; color: var(--accent); }
+.draft-card { border-color: var(--accent-line); }
+
+/* Cuaderno: temperatura */
+.temp-chip { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 9px; color: #17191C; background: color-mix(in srgb, var(--tc) 45%, #fff); box-shadow: inset 0 0 0 1px var(--tc); white-space: nowrap; }
+.heat-bar { display: inline-block; width: 54px; height: 8px; border-radius: 4px; background: linear-gradient(90deg, #6C9BD2, #9CC3DC, #D8CFB8, #F2A65A, #E0573E); }
+.heat-bar.lg { width: 100%; height: 10px; border-radius: 5px; }
+.temp-card { gap: 10px; }
+.temp-card[style] { border-color: var(--tc); background: color-mix(in srgb, var(--tc) 14%, var(--surface)); }
+.temp-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.temp-opt { min-height: 64px; border-radius: 14px; border: 1px solid var(--line); background: transparent; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; font-size: 11px; font-weight: 600; color: var(--ink); cursor: pointer; padding: 6px 0; }
+.temp-opt.on { border: 2px solid var(--ink); background: var(--surface); }
+.temp-dot { width: 24px; height: 24px; border-radius: 50%; }
+.week-strip { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; text-align: center; }
+.wk { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.wk-dot { width: 26px; height: 26px; border-radius: 50%; }
+.wk-dot.empty { border: 1.5px dashed var(--line); }
+.j-thumbs { display: flex; gap: 6px; }
+.j-thumbs img { width: 56px; height: 56px; object-fit: cover; border-radius: 10px; border: 1px solid var(--line); }
+
+/* Cuaderno: calendario */
+.month-nav { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.center-h { justify-content: center; }
+.cal-card { gap: 8px; }
+.cal-head, .cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.cal-head { font-size: 11px; font-weight: 600; color: var(--muted); text-align: center; }
+.cal-day { height: 46px; border-radius: 10px; border: 0; padding: 4px 0; display: flex; flex-direction: column; align-items: center; justify-content: space-between; cursor: pointer; font: inherit; background: transparent; color: var(--muted); }
+.cal-day.has { background: var(--surface-2); color: var(--ink); }
+.cal-day[style] { background: color-mix(in srgb, var(--heat) 38%, var(--surface)); }
+.cal-day.sel { box-shadow: inset 0 0 0 2px var(--ink); }
+.cal-day.today .cal-n { font-weight: 800; text-decoration: underline; }
+.cal-n { font-size: 12px; line-height: 1; }
+.cal-dots { display: flex; gap: 2px; height: 6px; }
+.cal-dots .day { width: 5px; height: 5px; border-radius: 3px; }
+.cal-legend .day { width: 8px; height: 8px; }
+
+/* Cuaderno: árbol */
+.tree-wrap { position: relative; width: 100%; max-width: 420px; margin: 0 auto; aspect-ratio: 354 / 440; border-radius: 22px; overflow: hidden; box-shadow: inset 0 0 0 1px var(--line); }
+.tree-svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.tree-layer { position: absolute; inset: 0; }
+.tree-hit { position: absolute; width: 34px; height: 34px; margin: -17px 0 0 -17px; border: 0; padding: 0; background: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.tree-hit.tk-hoja { touch-action: none; }
+.tree-hit.tk-hoja svg { transform: rotate(var(--rot, 0deg)); transition: transform .15s; filter: drop-shadow(0 1px 1px rgba(0,0,0,.15)); }
+.tree-hit.sel { box-shadow: 0 0 0 2.5px var(--ink), 0 0 0 5px rgba(255,255,255,.85); }
+.tree-hit.dragging { z-index: 3; }
+.tree-hit.dragging svg { transform: rotate(var(--rot, 0deg)) scale(1.35); }
+.j-sel { gap: 6px; }
+
+/* Cuaderno: bosque */
+.forest-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.forest-card { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 10px 12px; border-radius: 18px; background: var(--surface); border: 1px solid var(--line); color: var(--ink); font: inherit; cursor: pointer; text-align: center; }
+.forest-card.cur { border: 2px solid var(--ink); }
+.forest-art { width: 100%; border-radius: 12px; overflow: hidden; display: block; }
+.forest-art svg { width: 100%; height: auto; display: block; }
+.month-strip { display: flex; gap: 3px; height: 12px; border-radius: 6px; overflow: hidden; margin: 8px 0 4px; }
+.month-strip span { flex: 1; }
+.month-strip .empty { background: var(--surface-2); }
+@media (prefers-color-scheme: dark) {
+  .nuc-name { color: #2D2822; }
+  .temp-chip { color: #121413; }
+}
