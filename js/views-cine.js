@@ -4,7 +4,7 @@
 function newFragment(f) {
   return Object.assign({
     id: uid(), workId: null, kind: 'escena', title: '',
-    heading: { ie: 'INT.', place: '', time: 'DÍA' }, characters: '', goal: '', text: '', photos: [], aiAllowed: true
+    heading: { ie: 'INT.', place: '', time: 'DÍA' }, characters: '', goal: '', hints: {}, prompt: '', text: '', photos: [], aiAllowed: true
   }, f || {});
 }
 function newWork(f) {
@@ -50,7 +50,12 @@ function viewCine() {
   const works = S.works.slice().sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   const loose = S.fragments.filter((f) => !f.workId || !byId('works', f.workId)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   let html = topbar({ title: 'Taller de cine', sub: 'De escena suelta a corto, guion o novela' });
-  html += '<div class="row gap"><button class="btn" data-act="newWork">' + icon('plus', 16) + 'Nueva obra</button><button class="btn ghost" data-act="newFrag">' + icon('plus', 16) + 'Fragmento</button></div>';
+  html += '<div class="row gap wrap"><button class="btn" data-act="newWork">' + icon('plus', 16) + 'Nueva obra</button><button class="btn ghost" data-act="newFrag">' + icon('plus', 16) + 'Fragmento</button>' +
+    '<a class="btn ghost" href="#/dinamicas">' + icon('dice', 16) + 'Dinámicas</a></div>';
+  html += dynamicCard('cine');
+  const cineIdeas = S.ideas.filter((i) => i.stage !== 'archivada' && i.sectors.some((t) => CREATIVE_SECTORS.includes(t)) && !S.works.some((w) => w.ideaId === i.id));
+  if (cineIdeas.length) html += '<section class="section"><div class="row between"><h2 class="h2 m0">Ideas de cine</h2><a class="small" href="#/mapa?focus=cine">En el mapa</a></div><div class="stack-s">' +
+    cineIdeas.slice(0, 6).map((i) => '<div class="card row gap">' + orbHtml(i, 'xs') + '<a class="grow" href="#/idea/' + i.id + '"><strong>' + esc(ideaTitle(i)) + '</strong></a><button class="btn ghost small-btn" data-act="workFromIdea" data-id="' + i.id + '">Al taller</button></div>').join('') + '</div></section>';
 
   if (!works.length && !loose.length) {
     html += '<section class="card soft-card"><h2 class="h2">Cómo funciona</h2><ol class="steps">' +
@@ -75,6 +80,42 @@ function viewCine() {
   return html;
 }
 
+/* ---------- Pistas: preguntas opcionales que se abren solo si quieres ---------- */
+function fragHints(f, screen) {
+  const fh = (p) => 'data-field="fragments|' + f.id + '|' + p + '"';
+  const H = f.hints || {};
+  const out = [];
+  if (screen) out.push({ id: 'donde', q: '¿Dónde y cuándo?', val: headingLine(f), editor: '<div class="heading-row">' +
+      '<label><span class="sr">Interior o exterior</span><select ' + fh('heading.ie') + '>' + ['INT.', 'EXT.', 'INT./EXT.'].map((v) => '<option' + (f.heading.ie === v ? ' selected' : '') + '>' + v + '</option>').join('') + '</select></label>' +
+      '<label class="grow"><span class="sr">Lugar</span><input type="text" placeholder="LUGAR" value="' + esc(f.heading.place) + '" ' + fh('heading.place') + '></label>' +
+      '<label><span class="sr">Momento</span><select ' + fh('heading.time') + '>' + ['DÍA', 'NOCHE', 'AMANECER', 'ATARDECER', 'CONTINUO', 'MÁS TARDE'].map((v) => '<option' + (f.heading.time === v ? ' selected' : '') + '>' + v + '</option>').join('') + '</select></label></div>' });
+  out.push({ id: 'quienes', q: f.kind === 'personaje' ? '¿Cómo es y qué esconde?' : '¿Quiénes están?', val: f.characters, editor: '<input type="text" placeholder="' + (f.kind === 'personaje' ? 'Nombre, edad, qué quiere, qué esconde' : 'MARTA, EL ARCHIVISTA…') + '" value="' + esc(f.characters) + '" ' + fh('characters') + '>' });
+  out.push({ id: 'cambio', q: '¿Qué cambia entre el inicio y el final?', val: f.goal, editor: '<textarea class="autosize" rows="2" ' + fh('goal') + '>' + esc(f.goal) + '</textarea>' });
+  out.push({ id: 'quiere', q: '¿Qué quiere cada quien?', val: H.quiere, editor: '<textarea class="autosize" rows="2" ' + fh('hints.quiere') + '>' + esc(H.quiere || '') + '</textarea>' });
+  out.push({ id: 'subtexto', q: '¿Qué no se dice en voz alta?', val: H.subtexto, editor: '<textarea class="autosize" rows="2" ' + fh('hints.subtexto') + '>' + esc(H.subtexto || '') + '</textarea>' });
+  out.push({ id: 'objeto', q: '¿Qué objeto carga la escena?', val: H.objeto, editor: '<input type="text" value="' + esc(H.objeto || '') + '" ' + fh('hints.objeto') + '>' });
+  return out;
+}
+function workHints(w) {
+  const fw = (p) => 'data-field="works|' + w.id + '|' + p + '"';
+  return [
+    { id: 'logline', q: 'La historia en una frase', val: w.logline, editor: '<textarea class="autosize" rows="2" placeholder="Quién quiere qué, qué se lo impide y qué está en juego." ' + fw('logline') + '>' + esc(w.logline) + '</textarea>' },
+    { id: 'genero', q: '¿Qué género?', val: w.genre, editor: '<input type="text" placeholder="Drama, ciencia ficción…" value="' + esc(w.genre) + '" ' + fw('genre') + '>' },
+    { id: 'tono', q: '¿Qué tono y referentes?', val: w.tone, editor: '<input type="text" placeholder="Melancólico, a lo Lucrecia Martel…" value="' + esc(w.tone) + '" ' + fw('tone') + '>' }
+  ];
+}
+function hintsHtml(store, id, hints) {
+  const openId = UI.hintOpen && UI.hintOpen.id === id ? UI.hintOpen.h : null;
+  const filled = hints.filter((h) => (h.val || '').trim() && h.id !== openId);
+  const empty = hints.filter((h) => !(h.val || '').trim() && h.id !== openId);
+  const open = hints.find((h) => h.id === openId);
+  return '<section class="pistas"><div class="row between"><h2 class="h3 m0">Pistas, si te atoras</h2><span class="small muted">opcionales</span></div>' +
+    (filled.length ? '<div class="stack-s">' + filled.map((h) => '<button type="button" class="pista-done" data-act="hintOpen" data-id="' + id + '" data-h="' + h.id + '"><span class="small muted">' + esc(h.q) + '</span><span>' + esc(h.val) + '</span></button>').join('') + '</div>' : '') +
+    (open ? '<div class="pista-open"><label class="small muted">' + esc(open.q) + '</label>' + open.editor + '<button class="link-btn small" data-act="hintClose">Listo</button></div>' : '') +
+    (empty.length ? '<div class="chips scroll-x">' + empty.map((h) => '<button type="button" class="chip pista" data-act="hintOpen" data-id="' + id + '" data-h="' + h.id + '">' + esc(h.q) + '</button>').join('') + '</div>' : '') +
+    '</section>';
+}
+
 function fragRow(f) {
   const h = headingLine(f);
   return '<a class="card frag-row" href="#/frag/' + f.id + '"><span class="kind kind-' + f.kind + '">' + esc(fragKindLabel(f.kind)) + '</span>' +
@@ -96,9 +137,6 @@ function viewWork(id) {
 
   let html = topbar({ title: 'Obra', back: '#/cine' });
   html += '<label class="sr" for="w-title">Título</label><textarea id="w-title" class="title-input autosize" rows="1" placeholder="Título de la obra" ' + fld('title') + '>' + esc(w.title) + '</textarea>';
-  html += field('Logline', '<textarea class="autosize" rows="2" placeholder="Una frase: quién quiere qué, qué se lo impide y qué está en juego." ' + fld('logline') + '>' + esc(w.logline) + '</textarea>');
-  html += '<div class="grid2">' + field('Género', '<input type="text" placeholder="Drama, ciencia ficción…" value="' + esc(w.genre) + '" ' + fld('genre') + '>') +
-    field('Tono y referentes', '<input type="text" placeholder="Melancólico, a lo Lucrecia Martel…" value="' + esc(w.tone) + '" ' + fld('tone') + '>') + '</div>';
   html += field('Idea de origen', '<select ' + fld('ideaId') + ' data-type="null"><option value="">Ninguna</option>' + ideas.map((i) => '<option value="' + i.id + '"' + (i.id === w.ideaId ? ' selected' : '') + '>' + esc(ideaTitle(i)) + '</option>').join('') + '</select>');
   if (w.ideaId && byId('ideas', w.ideaId)) html += '<a class="small strong" href="#/idea/' + w.ideaId + '">Abrir la idea de origen →</a>';
 
@@ -114,6 +152,7 @@ function viewWork(id) {
       '<p class="small muted">' + esc(textStats(a.format, a.text)) + ' · ' + esc(relDays(a.updatedAt)) + '</p></a>').join('')
       : '<p class="small muted">Una misma obra puede tener varias adaptaciones: por ejemplo un corto para festival y luego la novela.</p>') + '</div></section>';
 
+  html += hintsHtml('works', id, workHints(w));
   html += '<section class="section row gap wrap"><button class="btn ghost" data-act="newSession" data-target="obra:' + id + '">' + icon('clock', 16) + 'Agendar sesión</button>' +
     '<button class="btn danger-ghost" data-act="deleteWork" data-id="' + id + '">Eliminar obra</button></section>';
   return html;
@@ -134,15 +173,7 @@ function viewFrag(id) {
   html += '<div class="chips">' + FRAG_KINDS.map((k) => chip(k.label, { on: f.kind === k.id, data: { act: 'fragKind', id, kind: k.id } })).join('') + '</div>';
   html += '<label class="sr" for="f-title">Título</label><textarea id="f-title" class="title-input autosize" rows="1" placeholder="Título del fragmento" ' + fld('title') + '>' + esc(f.title) + '</textarea>';
 
-  if (screen) {
-    html += '<div class="heading-row">' +
-      '<label><span class="sr">Interior o exterior</span><select ' + fld('heading.ie') + '>' + ['INT.', 'EXT.', 'INT./EXT.'].map((v) => '<option' + (f.heading.ie === v ? ' selected' : '') + '>' + v + '</option>').join('') + '</select></label>' +
-      '<label class="grow"><span class="sr">Lugar</span><input type="text" placeholder="LUGAR" value="' + esc(f.heading.place) + '" ' + fld('heading.place') + '></label>' +
-      '<label><span class="sr">Momento</span><select ' + fld('heading.time') + '>' + ['DÍA', 'NOCHE', 'AMANECER', 'ATARDECER', 'CONTINUO', 'MÁS TARDE'].map((v) => '<option' + (f.heading.time === v ? ' selected' : '') + '>' + v + '</option>').join('') + '</select></label></div>';
-  }
-  html += field(f.kind === 'personaje' ? 'Nombre y rasgos' : 'Personajes', '<input type="text" placeholder="' + (f.kind === 'personaje' ? 'Nombre, edad, qué quiere, qué esconde' : 'MARTA, EL ARCHIVISTA…') + '" value="' + esc(f.characters) + '" ' + fld('characters') + '>');
-  html += field(screen ? 'Objetivo / conflicto de la escena' : 'Intención', '<textarea class="autosize" rows="1" placeholder="¿Qué cambia entre el inicio y el final?" ' + fld('goal') + '>' + esc(f.goal) + '</textarea>');
-
+  if (f.prompt) html += '<div class="prompt-note">' + icon('dice', 18) + '<span class="grow">' + esc(f.prompt) + '</span><button class="icon-btn sm" data-act="fragPromptClear" data-id="' + id + '" aria-label="Quitar la consigna">' + icon('x', 16) + '</button></div>';
   html += '<div class="tabs" role="tablist"><button role="tab" aria-selected="' + (tab === 'editar') + '" class="tab' + (tab === 'editar' ? ' on' : '') + '" data-act="fragTab" data-tab="editar">Escribir</button>' +
     '<button role="tab" aria-selected="' + (tab === 'ver') + '" class="tab' + (tab === 'ver' ? ' on' : '') + '" data-act="fragTab" data-tab="ver">Vista de guion</button></div>';
   if (tab === 'ver') {
@@ -151,6 +182,8 @@ function viewFrag(id) {
     if (screen) html += scriptToolbar('f-text');
     html += '<label class="sr" for="f-text">Texto</label><textarea id="f-text" class="autosize mono-input" rows="10" placeholder="' + (screen ? 'Escribe libre o en formato guion:\n\nMARTA\n(en voz baja)\nNo era aquí.' : 'Escribe el fragmento…') + '" ' + fld('text') + '>' + esc(f.text) + '</textarea>';
   }
+  html += hintsHtml('fragments', id, fragHints(f, screen));
+  html += dynamicCard('frag');
 
   html += '<div class="thumbs">' + f.photos.map((p) => '<button class="thumb" data-act="viewPhoto" data-blob="' + p + '" data-owner="fragments|' + id + '" aria-label="Ver imagen"><img alt="" data-blob="' + p + '"></button>').join('') +
     '<label class="thumb add">' + icon('camera') + '<span>Referencia</span><input type="file" accept="image/*" multiple hidden data-change="fragPhotos" data-id="' + id + '"></label></div>';
@@ -285,6 +318,9 @@ async function runCineAI(scope, id, action) {
 }
 
 Object.assign(ACTIONS, {
+  hintOpen(el) { UI.hintOpen = { id: el.dataset.id, h: el.dataset.h }; rerender(); setTimeout(() => { const x = $('.pista-open input, .pista-open textarea'); if (x) x.focus(); }, 30); },
+  hintClose() { UI.hintOpen = null; rerender(); },
+  async fragPromptClear(el) { const f = byId('fragments', el.dataset.id); f.prompt = ''; await persist('fragments', f); rerender(); },
   async newWork() { const w = newWork(); await addItem('works', w); go('#/obra/' + w.id); },
   async newFrag(el) {
     const fr = newFragment({ workId: el.dataset.work || null });
@@ -296,8 +332,8 @@ Object.assign(ACTIONS, {
     const i = byId('ideas', el.dataset.id);
     const w = newWork({ title: i.title, logline: (i.answers.premisa || '').trim(), tone: (i.answers.tono || '').trim(), ideaId: i.id });
     await addItem('works', w);
-    if (i.body.trim()) {
-      const fr = newFragment({ workId: w.id, kind: 'trama', title: 'Notas de la idea', text: i.body });
+    if (plainText(i.body)) {
+      const fr = newFragment({ workId: w.id, kind: 'trama', title: 'Notas de la idea', text: plainText(i.body) });
       await addItem('fragments', fr); w.fragmentIds.push(fr.id); await persist('works', w);
     }
     if (!i.sectors.includes('Cine')) { i.sectors.push('Cine'); await persist('ideas', i); }

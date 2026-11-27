@@ -45,18 +45,41 @@ function statusLabel(e) {
   return e.forSession ? 'Pendiente · próxima sesión' : 'Pendiente';
 }
 
-/* ================= TEMPERATURA EMOCIONAL ================= */
-const TEMPS = [
-  { label: 'Helada', color: '#6C9BD2', desc: 'Apagado, lejos, sin energía' },
-  { label: 'Fría', color: '#9CC3DC', desc: 'Bajo, cansado, desanimado' },
-  { label: 'Templada', color: '#D8CFB8', desc: 'Neutral, en calma' },
-  { label: 'Cálida', color: '#F2A65A', desc: 'Animado, con energía' },
-  { label: 'Ardiente', color: '#E0573E', desc: 'Intenso: enojo, euforia, ansiedad' }
+/* ================= EMOCIONES =================
+   Inspiradas en las emociones de Intensamente, con intensidad suave, media o intensa. Un pensamiento puede llevar hasta dos. */
+const EMOTIONS = [
+  { id: 'alegria', label: 'Alegría', color: '#F2C230', desc: 'ligero, con ganas' },
+  { id: 'calma', label: 'Calma', color: '#5DB896', desc: 'en paz, sin prisa' },
+  { id: 'tristeza', label: 'Tristeza', color: '#4F7BD6', desc: 'pesado, bajito' },
+  { id: 'nostalgia', label: 'Nostalgia', color: '#B48CC4', desc: 'extrañar algo' },
+  { id: 'miedo', label: 'Miedo', color: '#7A5BC7', desc: 'alerta, inseguro' },
+  { id: 'ansiedad', label: 'Ansiedad', color: '#EE8A3A', desc: 'adelantarse a todo' },
+  { id: 'ira', label: 'Ira', color: '#D9443A', desc: 'algo no es justo' },
+  { id: 'desagrado', label: 'Desagrado', color: '#7BAF3A', desc: 'esto no va conmigo' },
+  { id: 'envidia', label: 'Envidia', color: '#2A9D8F', desc: 'quiero lo del otro' },
+  { id: 'verguenza', label: 'Vergüenza', color: '#E58FB0', desc: 'quiero esconderme' },
+  { id: 'aburrimiento', label: 'Aburrimiento', color: '#4A5794', desc: 'nada me mueve' }
 ];
-const tempOf = (e) => (e.kind === 'pensamiento' && e.temp >= 1 && e.temp <= 5 ? TEMPS[e.temp - 1] : null);
-function tempChip(e) {
-  const t = tempOf(e);
-  return t ? '<span class="temp-chip" style="--tc:' + t.color + '">' + t.label + '</span>' : '';
+const INTENSITY = ['suave', 'media', 'intensa'];
+/* Temperaturas de la 0.4 → emoción + intensidad */
+const TEMP_TO_EMO = { 1: { e: 'tristeza', i: 3 }, 2: { e: 'tristeza', i: 1 }, 3: { e: 'calma', i: 2 }, 4: { e: 'alegria', i: 2 }, 5: { e: 'ira', i: 3 } };
+const emoDef = (id) => EMOTIONS.find((x) => x.id === id);
+function shade(hex, i) {
+  const c = [1, 3, 5].map((k) => parseInt(hex.slice(k, k + 2), 16));
+  const to = i === 1 ? 255 : i === 3 ? 0 : null; const t = i === 1 ? 0.45 : 0.22;
+  return to == null ? hex : '#' + c.map((v) => Math.round(v + (to - v) * t).toString(16).padStart(2, '0')).join('');
+}
+/* Emociones de una entrada: [{ e, i, def, color }] (solo pensamientos). */
+function emosOf(e) {
+  if (!e || e.kind !== 'pensamiento') return [];
+  let list = Array.isArray(e.emo) ? e.emo : (e.temp >= 1 && e.temp <= 5 ? [TEMP_TO_EMO[e.temp]] : []);
+  return list.map((x) => { const def = emoDef(x.e); return def ? { e: x.e, i: x.i || 2, def, color: shade(def.color, x.i || 2) } : null; }).filter(Boolean);
+}
+const emoColor = (e) => { const l = emosOf(e); return l.length ? l[0].color : ''; };
+const emoLabel = (x) => x.def.label + (x.i !== 2 ? ' ' + INTENSITY[x.i - 1] : '');
+function emoChip(e) {
+  const l = emosOf(e);
+  return l.length ? '<span class="emo-chip">' + l.map((x) => '<span class="dot" style="background:' + x.color + '"></span>').join('') + esc(l.map(emoLabel).join(' + ')) + '</span>' : '';
 }
 
 /* ================= CUADERNO: ÁRBOL · CALENDARIO · BOSQUE ================= */
@@ -77,10 +100,11 @@ function viewJournal() {
   const view = UI.journalView || 'arbol';
   let html = '<header class="topbar"><div class="topbar-title"><h1>Cuaderno</h1><p class="row gap-s">' + icon('lock', 13) + 'Privado · fuera del mapa y de la IA</p></div>' +
     '<div class="topbar-actions"><button class="btn dark small-btn" data-act="journalNew">' + icon('plus', 16) + 'Escribir</button></div></header>';
-  html += '<div class="seg2" role="group" aria-label="Vista">' + [['arbol', 'Árbol'], ['calendario', 'Calendario'], ['bosque', 'Bosque']].map(([id, l]) =>
-    '<button type="button" class="seg2-btn" aria-pressed="' + (view === id) + '" data-act="journalView" data-v="' + id + '">' + l + '</button>').join('') + '</div>';
+  html += '<div class="seg2" role="group" aria-label="Vista">' + [['arbol', 'Árbol'], ['calendario', 'Calendario'], ['lista', 'Lista']].map(([id, l]) =>
+    '<button type="button" class="seg2-btn" aria-pressed="' + (view === id || (id === 'arbol' && view === 'bosque')) + '" data-act="journalView" data-v="' + id + '">' + l + '</button>').join('') + '</div>';
   if (view === 'arbol') html += treeView();
   else if (view === 'bosque') html += forestView();
+  else if (view === 'lista') html += listView();
   else html += calendarView();
   return html;
 }
@@ -103,7 +127,7 @@ function calendarView() {
   monthEntries.forEach((e) => { const d = new Date(e.createdAt).getDate(); (byDay[d] = byDay[d] || []).push(e); });
   const days = Object.keys(byDay).length;
   const counts = {}; monthEntries.forEach((e) => { counts[e.kind] = (counts[e.kind] || 0) + 1; });
-  const sub = days + (days === 1 ? ' día' : ' días') + (f === 'todo' ? Object.keys(JOURNAL_KINDS).map((k) => counts[k] ? ' · ' + counts[k] + ' ' + JOURNAL_KINDS[k].plural.toLowerCase() : '').join('') : '');
+  const sub = days + (days === 1 ? ' día' : ' días') + (f === 'todo' ? Object.keys(JOURNAL_KINDS).map((k) => counts[k] ? ' · ' + counts[k] + ' ' + (counts[k] === 1 ? JOURNAL_KINDS[k].label : JOURNAL_KINDS[k].plural).toLowerCase() : '').join('') : '');
   const filters = [['todo', 'Todo']].concat(Object.keys(JOURNAL_KINDS).map((k) => [k, JOURNAL_KINDS[k].plural]));
 
   let html = '<div class="chips scroll-x" role="group" aria-label="Filtrar">' + filters.map(([id, label]) => chip(label, { on: f === id, data: { act: 'journalFilter', f: id } })).join('') + '</div>';
@@ -115,19 +139,19 @@ function calendarView() {
   for (let i = 0; i < lead; i++) cells += '<span></span>';
   for (let d = 1; d <= daysIn; d++) {
     const es = byDay[d] || [];
-    const temps = es.map(tempOf).filter(Boolean);
-    const avg = temps.length ? Math.round(es.filter(tempOf).reduce((a, e) => a + e.temp, 0) / temps.length) : 0;
+    const emoCols = es.map(emoColor).filter(Boolean);
+    const heat = emoCols.length ? emoCols[emoCols.length - 1] : '';
     const kinds = Object.keys(JOURNAL_KINDS).filter((k) => es.some((e) => e.kind === k));
     const isToday = d === today.getDate() && m === today.getMonth() && y === today.getFullYear();
     cells += '<button type="button" class="cal-day' + (es.length ? ' has' : '') + (isToday ? ' today' : '') + (d === sel ? ' sel' : '') + '"' +
-      (avg ? ' style="--heat:' + TEMPS[avg - 1].color + '"' : '') + ' data-act="journalDay" data-d="' + d + '" aria-pressed="' + (d === sel) + '" aria-label="' + d + ' · ' + es.length + (es.length === 1 ? ' entrada' : ' entradas') + '">' +
+      (heat ? ' style="--heat:' + heat + '"' : '') + ' data-act="journalDay" data-d="' + d + '" aria-pressed="' + (d === sel) + '" aria-label="' + d + ' · ' + es.length + (es.length === 1 ? ' entrada' : ' entradas') + '">' +
       '<span class="cal-n">' + d + '</span><span class="cal-dots">' + kinds.map((k) => '<span class="day jk-' + k + '"></span>').join('') + '</span></button>';
   }
   html += '<section class="card cal-card" aria-label="Calendario">' + monthNav(esc(monthName(y, m)), esc(sub)) +
     '<div class="cal-head" aria-hidden="true"><span>L</span><span>M</span><span>M</span><span>J</span><span>V</span><span>S</span><span>D</span></div>' +
     '<div class="cal-grid">' + cells + '</div>' +
     '<div class="row gap wrap small muted cal-legend">' + Object.keys(JOURNAL_KINDS).map((k) => '<span class="row gap-s"><span class="day jk-' + k + '"></span>' + JOURNAL_KINDS[k].label + '</span>').join('') +
-    '<span class="row gap-s">Fondo = temperatura<span class="heat-bar"></span></span></div></section>';
+    '<span class="row gap-s">Fondo = emoción del día<span class="emo-bar"></span></span></div></section>';
 
   const list = (sel ? (byDay[sel] || []) : monthEntries).slice().sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   html += '<div class="row between"><h2 class="h2 m0">' + (sel ? esc(fmtDate(new Date(y, m, sel), { weekday: 'long', day: 'numeric', month: 'long' })) : 'Todo el mes') + '</h2>' +
@@ -161,7 +185,7 @@ function journalCard(e) {
   const ph = (e.photos || []).slice(0, 3);
   return '<a class="card j-card" href="#/nota/' + e.id + '">' +
     '<div class="row between"><span class="j-kind jk-' + e.kind + '"><span class="day jk-' + e.kind + '"></span>' + esc(journalKind(e.kind).label) + '</span>' +
-    '<span class="row gap-s">' + tempChip(e) + '<span class="small muted">' + esc(journalWhen(e.createdAt)) + '</span></span></div>' + body +
+    '<span class="row gap-s">' + emoChip(e) + '<span class="small muted">' + esc(journalWhen(e.createdAt)) + '</span></span></div>' + body +
     (ph.length ? '<span class="j-thumbs">' + ph.map((p) => '<img alt="" data-blob="' + p + '">').join('') + '</span>' : '') +
     (st ? '<span class="j-status' + (e.status === 'hablado' ? ' done' : '') + '">' + esc(st) + '</span>' : '') + '</a>';
 }
@@ -190,7 +214,7 @@ function viewJournalEntry(id) {
     '<button class="thumb" data-act="viewPhoto" data-blob="' + p + '" data-owner="journal|' + id + '" aria-label="Ver foto"><img alt="" data-blob="' + p + '"></button>').join('') +
     '<label class="thumb add">' + icon('camera') + '<span>Foto</span><input type="file" accept="image/*" multiple hidden data-change="journalPhotos" data-id="' + id + '"></label></div>';
 
-  if (e.kind === 'pensamiento') html += tempPicker(e);
+  if (e.kind === 'pensamiento') html += emoPicker(e);
 
   if (e.kind === 'terapia') {
     const date = S.settings.nextTherapy;
@@ -209,29 +233,72 @@ function viewJournalEntry(id) {
   return html;
 }
 
-function tempPicker(e) {
-  const cur = tempOf(e);
-  /* franja de la semana: temperatura promedio de tus pensamientos por día */
+function emoPicker(e) {
+  const cur = emosOf(e); const ids = cur.map((x) => x.e);
+  const focus = UI.emoFocus && ids.includes(UI.emoFocus) ? UI.emoFocus : (ids[ids.length - 1] || null);
+  const fx = cur.find((x) => x.e === focus);
+  /* franja de la semana: la emoción principal de cada día */
   const days = [];
   for (let k = 6; k >= 0; k--) {
     const d = new Date(startOfToday().getTime() - k * DAY);
-    const es = S.journal.filter((x) => tempOf(x) && localDate(new Date(x.createdAt)) === localDate(d));
-    const avg = es.length ? Math.round(es.reduce((a, x) => a + x.temp, 0) / es.length) : 0;
-    days.push({ d, avg });
+    const es = S.journal.filter((x) => emosOf(x).length && localDate(new Date(x.createdAt)) === localDate(d));
+    days.push({ d, c: es.length ? emoColor(es[es.length - 1]) : '' });
   }
-  const week = days.filter((x) => x.avg);
-  const wAvg = week.length ? Math.round(week.reduce((a, x) => a + x.avg, 0) / week.length) : 0;
-  return '<section class="card temp-card"' + (cur ? ' style="--tc:' + cur.color + '"' : '') + ' aria-label="Temperatura emocional">' +
-    '<div class="row between"><h2 class="h2 m0">Temperatura emocional</h2><span class="small strong">' + (cur ? cur.label : 'Sin elegir') + '</span></div>' +
-    '<div class="heat-bar lg" aria-hidden="true"></div>' +
-    '<div class="temp-grid" role="radiogroup" aria-label="Elige la temperatura">' + TEMPS.map((t, i) =>
-      '<button type="button" role="radio" class="temp-opt' + (e.temp === i + 1 ? ' on' : '') + '" aria-checked="' + (e.temp === i + 1) + '" data-act="journalTemp" data-id="' + e.id + '" data-t="' + (i + 1) + '">' +
-      '<span class="temp-dot" style="background:' + t.color + '"></span><span>' + t.label + '</span></button>').join('') + '</div>' +
-    '<p class="small">' + (cur ? esc(cur.desc) : '¿Qué tan encendida está la emoción de este pensamiento?') + '</p></section>' +
-    '<section class="card" aria-label="Tu semana"><div class="row between"><h2 class="h2 m0">Tus pensamientos esta semana</h2>' +
-    (wAvg ? '<span class="small muted">promedio: ' + TEMPS[wAvg - 1].label.toLowerCase() + '</span>' : '') + '</div>' +
-    '<div class="week-strip">' + days.map((x) => '<span class="wk"><span class="wk-dot' + (x.avg ? '' : ' empty') + '"' + (x.avg ? ' style="background:' + TEMPS[x.avg - 1].color + '"' : '') + '></span>' +
+  const leafPrev = cur.length ? '<span class="emo-preview">' + leafSvgColors(cur.map((x) => x.color), 'pv-' + e.id) + '<span class="small"><strong>Así se verá tu hoja:</strong> ' + esc(cur.map(emoLabel).join(' con ').toLowerCase()) + '.</span></span>' : '';
+  return '<section class="card emo-card" aria-label="Emociones">' +
+    '<div class="emo-bar lg" aria-hidden="true"></div>' +
+    '<div class="row between"><h2 class="h2 m0">¿Qué sientes?</h2><span class="small muted">hasta 2</span></div>' +
+    '<div class="emo-grid" role="group" aria-label="Elige hasta dos emociones">' + EMOTIONS.map((x) => {
+      const on = ids.includes(x.id);
+      return '<button type="button" class="emo-opt' + (on ? ' on' : '') + '" aria-pressed="' + on + '" data-act="journalEmo" data-id="' + e.id + '" data-e="' + x.id + '" style="--ec:' + x.color + '">' +
+        '<span class="emo-dot"></span><span class="emo-name">' + x.label + '</span><span class="emo-desc">' + x.desc + '</span></button>';
+    }).join('') + '</div>' +
+    (fx ? '<h3 class="h3">¿Qué tan fuerte? · ' + esc(fx.def.label) + '</h3><div class="emo-int" role="radiogroup" aria-label="Intensidad">' + [1, 2, 3].map((i) =>
+      '<button type="button" role="radio" class="emo-i' + (fx.i === i ? ' on' : '') + '" aria-checked="' + (fx.i === i) + '" data-act="journalEmoInt" data-id="' + e.id + '" data-e="' + fx.e + '" data-i="' + i + '">' + leafSvgColors([shade(fx.def.color, i)], 'i' + i + e.id, 15) + '<span class="cap">' + INTENSITY[i - 1] + '</span></button>').join('') + '</div>' : '') +
+    leafPrev + '</section>' +
+    '<section class="card" aria-label="Tu semana"><h2 class="h2 m0">Tus pensamientos esta semana</h2>' +
+    '<div class="week-strip">' + days.map((x) => '<span class="wk"><span class="wk-dot' + (x.c ? '' : ' empty') + '"' + (x.c ? ' style="background:' + x.c + '"' : '') + '></span>' +
       '<span class="small muted">' + esc(fmtDate(x.d, { weekday: 'narrow' })) + '</span></span>').join('') + '</div></section>';
+}
+
+/* Hoja de árbol con uno o dos colores (mitad y mitad). */
+function leafSvgColors(cols, gid, w) {
+  w = w || 22; const h = Math.round(w * 1.4);
+  const fill = cols.length > 1 ? 'url(#lf-' + gid + ')' : (cols[0] || '#F4EEDC');
+  return '<svg viewBox="-10 -14 20 28" width="' + w + '" height="' + h + '" aria-hidden="true">' +
+    (cols.length > 1 ? '<defs><linearGradient id="lf-' + gid + '" x1="0" x2="1"><stop offset=".5" stop-color="' + cols[0] + '"/><stop offset=".5" stop-color="' + cols[1] + '"/></linearGradient></defs>' : '') +
+    '<path d="M0 -13 C9 -7 9 7 0 13 C-9 7 -9 -7 0 -13Z" fill="' + fill + '" stroke="#2F2A20" stroke-width="1.3"/>' +
+    '<path d="M0 -10 L0 11 M0 -2 L4 -6 M0 3 L-4 -1" stroke="#2F2A20" stroke-width=".8" opacity=".55" fill="none"/></svg>';
+}
+
+/* ---------- Lista: todos tus pensamientos, por fecha o juntos ---------- */
+function listView() {
+  const f = UI.journalFilter || 'pensamiento'; const mode = UI.journalListMode || 'fecha'; const emo = UI.journalEmo || '';
+  const filters = [['todo', 'Todo']].concat(Object.keys(JOURNAL_KINDS).map((k) => [k, JOURNAL_KINDS[k].plural]));
+  let html = '<div class="row gap"><label class="search-field grow">' + icon('search', 18) + '<span class="sr">Buscar en el cuaderno</span><input type="search" id="jl-q" placeholder="Buscar" value="' + esc(UI.journalQ || '') + '"></label>' +
+    '<div class="seg-mini" role="group" aria-label="Orden"><button type="button" aria-pressed="' + (mode === 'fecha') + '" data-act="journalListMode" data-m="fecha">Por fecha</button><button type="button" aria-pressed="' + (mode === 'todo') + '" data-act="journalListMode" data-m="todo">Todo</button></div></div>';
+  html += '<div class="chips scroll-x" role="group" aria-label="Filtrar">' + filters.map(([id, label]) => chip(label, { on: f === id, data: { act: 'journalFilter', f: id } })).join('') + '</div>';
+  if (f === 'pensamiento' || f === 'todo') html += '<div class="emo-filter" role="group" aria-label="Filtrar por emoción"><span class="small muted">Emoción</span>' +
+    EMOTIONS.map((x) => '<button type="button" class="emo-f' + (emo === x.id ? ' on' : '') + '" aria-pressed="' + (emo === x.id) + '" data-act="journalEmoFilter" data-e="' + x.id + '" style="background:' + x.color + '" aria-label="' + x.label + '"></button>').join('') + '</div>';
+  html += '<div id="j-list">' + listItems() + '</div>';
+  return html;
+}
+function listItems() {
+  const f = UI.journalFilter || 'pensamiento'; const mode = UI.journalListMode || 'fecha'; const emo = UI.journalEmo || ''; const q = (UI.journalQ || '').trim().toLowerCase();
+  const list = S.journal.filter((e) => (f === 'todo' || e.kind === f) && (!emo || emosOf(e).some((x) => x.e === emo)) &&
+    (!q || ((e.title || '') + ' ' + (e.text || '')).toLowerCase().includes(q))).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  if (!list.length) return emptyState('Nada por aquí', q || emo ? 'Prueba con otra búsqueda o quita el filtro.' : 'Escribe un pensamiento desde el botón +.', '');
+  const row = (e) => {
+    const l = emosOf(e);
+    return '<a class="j-row" href="#/nota/' + e.id + '">' + (e.kind === 'pensamiento' ? leafSvgColors(l.map((x) => x.color), 'jr-' + e.id, 20) : '<span class="day jk-' + e.kind + '"></span>') +
+      '<span class="grow"><span class="j-row-text' + (mode === 'todo' ? ' clamp2' : '') + '">' + esc(e.kind === 'poema' && e.title ? e.title + ' — ' + e.text : e.text) + '</span>' +
+      '<span class="small muted">' + (l.length ? '<strong class="j-row-emo">' + esc(l.map(emoLabel).join(' + ')) + '</strong> · ' : '') + esc(mode === 'todo' ? fmtDate(new Date(e.createdAt), { day: 'numeric', month: 'short', year: 'numeric' }) : fmtDate(new Date(e.createdAt), { hour: '2-digit', minute: '2-digit' })) + '</span></span>' +
+      ((e.photos || [])[0] ? '<img class="j-row-img" alt="" data-blob="' + e.photos[0] + '">' : '') + '</a>';
+  };
+  if (mode === 'todo') return '<div class="stack-s">' + list.map(row).join('') + '</div>';
+  const groups = [];
+  list.forEach((e) => { const k = localDate(new Date(e.createdAt)); let g = groups[groups.length - 1]; if (!g || g.k !== k) groups.push(g = { k, items: [] }); g.items.push(e); });
+  return groups.map((g) => '<h3 class="j-day cap">' + esc(journalWhen(g.items[0].createdAt).split(' · ')[0] === 'Hoy' ? 'Hoy' : fmtDate(parseLocal(g.k + 'T12:00'), { weekday: 'long', day: 'numeric', month: 'long' })) + '</h3><div class="stack-s">' + g.items.map(row).join('') + '</div>').join('');
 }
 
 /* ================= ACCIONES ================= */
@@ -293,12 +360,12 @@ Object.assign(ACTIONS, {
 
 async function ideaToJournal(idea, kind) {
   const snap = JSON.parse(JSON.stringify(idea));
-  const text = kind === 'poema' ? (idea.body || idea.title) : [idea.title, idea.body].filter((x) => x && x.trim()).join('\n');
+  const text = kind === 'poema' ? (plainText(idea.body) || idea.title) : [idea.title, plainText(idea.body)].filter((x) => x && x.trim()).join('\n');
   const photos = (idea.photos || []).slice();
   if (idea.ink && idea.ink.strokes && idea.ink.strokes.length && typeof inkToPng === 'function') {
     const id = uid(); await DB.put('blobs', { id, data: inkToPng(idea.ink), owner: 'journal|x', createdAt: nowISO(), updatedAt: nowISO() }); photos.push(id);
   }
-  const e = newJournal({ kind, title: kind === 'poema' && idea.body ? idea.title : '', text, photos, fromIdea: snap, createdAt: idea.createdAt });
+  const e = newJournal({ kind, title: kind === 'poema' && plainText(idea.body) ? idea.title : '', text, photos, fromIdea: snap, createdAt: idea.createdAt });
   for (const r of (idea.related || []).slice()) await unrelateIdeas(idea.id, r);
   await addItem('journal', e);
   S.ideas = S.ideas.filter((x) => x.id !== idea.id); await DB.del('ideas', idea.id);
@@ -321,7 +388,7 @@ async function journalToIdea(e) {
 }
 
 Object.assign(ACTIONS, {
-  journalView(el) { UI.journalView = el.dataset.v; rerender(); },
+  journalView(el) { UI.journalView = el.dataset.v; if (el.dataset.y) { UI.forestYear = Number(el.dataset.y); UI.forestSel = null; } rerender(); if (el.dataset.v === 'bosque') window.scrollTo(0, 0); },
   journalMonthStep(el) {
     const { y, m } = journalMonth(); const d = new Date(y, m + Number(el.dataset.d), 1);
     UI.journalMonth = { y: d.getFullYear(), m: d.getMonth() }; UI.journalDay = null; UI.treeSel = null; rerender();
@@ -330,10 +397,20 @@ Object.assign(ACTIONS, {
     const d = Number(el.dataset.d); const { y, m } = journalMonth();
     UI.journalDay = d ? monthKey(y, m) + '-' + pad(d) : null; rerender();
   },
-  async journalTemp(el) {
-    const e = byId('journal', el.dataset.id); const t = Number(el.dataset.t);
-    e.temp = e.temp === t ? null : t; await persist('journal', e); rerender();
+  async journalEmo(el) {
+    const e = byId('journal', el.dataset.id); const id = el.dataset.e;
+    let list = emosOf(e).map((x) => ({ e: x.e, i: x.i }));
+    if (list.some((x) => x.e === id)) { list = list.filter((x) => x.e !== id); UI.emoFocus = null; }
+    else { if (list.length >= 2) list.shift(); list.push({ e: id, i: 2 }); UI.emoFocus = id; }
+    e.emo = list; delete e.temp; await persist('journal', e); rerender();
   },
+  async journalEmoInt(el) {
+    const e = byId('journal', el.dataset.id);
+    e.emo = emosOf(e).map((x) => ({ e: x.e, i: x.e === el.dataset.e ? Number(el.dataset.i) : x.i })); delete e.temp; UI.emoFocus = el.dataset.e;
+    await persist('journal', e); rerender();
+  },
+  journalListMode(el) { UI.journalListMode = el.dataset.m; rerender(); },
+  journalEmoFilter(el) { UI.journalEmo = UI.journalEmo === el.dataset.e ? '' : el.dataset.e; rerender(); },
   journalToIdea(el) {
     openSheet('Convertir en idea', '<p class="small">El texto pasa a una hoja de idea (la primera oración será el título) y sus fotos la acompañan.</p>' +
       '<p class="small"><strong>Deja de ser privada:</strong> aparecerá como canica en el mapa y el asistente podrá leerla si la IA está activa.</p>' +

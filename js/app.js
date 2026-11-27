@@ -23,7 +23,10 @@ function onField(e) {
   if (e.type === 'input') {
     if (el.matches('textarea.autosize')) autosize(el);
     if (el.id === 'hoja-title') splitHojaTitle(el);
-    if ((el.id === 'hoja-title' || el.id === 'hoja-body') && isCaptureSheet()) { syncCapFields(); saveDraft(); }
+    if (el.classList && el.classList.contains('blk')) { onBlockInput(el); return; }
+    if (el.id === 'hoja-title' && isCaptureSheet()) { syncCapFields(); saveDraft(); }
+    if (el.id === 'anchor-q') { const r = $('#anchor-results'); if (r) { r.innerHTML = anchorResults(el.value); fillPhotos(r); } return; }
+    if (el.id === 'jl-q') { UI.journalQ = el.value; const r = $('#j-list'); if (r) { r.innerHTML = listItems(); fillPhotos(r); } return; }
     if (el.id === 'idea-search') { UI.ideaFilter.q = el.value; renderIdeaList(); }
     if (isToggle) return;
   }

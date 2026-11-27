@@ -1,6 +1,33 @@
-# Semillero 0.4
+# Semillero 0.5
 
 Semillero es una app personal para madurar ideas hasta convertirlas en proyectos. Incluye un taller de cine para escenas, diálogos y tramas. Funciona en iPhone como app instalada (PWA), sin servidores y sin cuentas. Tus datos viven solo en tu dispositivo.
+
+## Novedades de la 0.5
+
+- **Inicio nuevo.** Arriba ves el árbol de este mes. Abajo están lo último que registraste (3 items), una tarjeta de cine con una dinámica de escritura, la agenda a la vista y el aviso de respaldo.
+- **Crear.** El (+) solo pregunta qué es: **Idea, Pregunta, Actualización, Poema o Pensamiento**.
+  - Pregunta y Actualización siempre se anclan a una idea que ya existe. La actualización se suma a su bitácora.
+  - Los temas de terapia son un Pensamiento con la opción "Para terapia".
+  - Eliges los tags (y el núcleo) antes de guardar.
+- **Imágenes dentro del texto.** Cada imagen tiene su lugar entre los párrafos. La subes, la bajas o la quitas desde la misma hoja.
+- **Boceto.** El área de dibujo se abre debajo del texto y crece mientras dibujas.
+  - Tiene 16 colores más uno libre, 3 grosores, marcador, borrador y deshacer.
+  - Para mover un dibujo, mantén presionado un trazo y sacúdelo: se despega junto con sus trazos vecinos y lo arrastras a otro lugar. También está la herramienta de mano.
+- **Núcleos.** Pueden tener varios colores (o tomar los de sus tags). Los estados (Explorando, Activo, En pausa, Bloqueado, Terminado) se pueden renombrar y ampliar.
+  - Al abrir un núcleo ves tarjetas con la vista previa de sus ideas.
+  - Si entras a una idea desde ahí, "atrás" regresa al núcleo y unas flechas pasan a la siguiente idea del mismo núcleo.
+- **Sistemas.** Un proyecto grande puede agrupar varios núcleos. En el mapa orbitan juntos.
+- **Mapa.** Los tags caben en un solo botón que se despliega. Hay accesos rápidos para volar a cada sistema, núcleo, cine o a las ideas sueltas, más un minimapa.
+  - Cada proyecto guarda distancia de los demás, y las ideas de cine sueltas tienen su propia región.
+  - Rinde mejor: cada canica solo calcula contra sus vecinas, lo que está fuera de la pantalla no se redibuja, la física se calma o se duerme cuando todo está quieto, y en teléfonos lentos calcula a la mitad de cuadros.
+- **Cine.** Escribes primero. Las preguntas ahora son "pistas, si te atoras": opcionales, tenues, y solo se abren si las tocas.
+  - Hay una biblioteca de **dinámicas de escritura** basadas en técnicas conocidas (Goldberg, Cameron, Rodari, Rico, Ingermanson, Harmon y otras), con consignas que cambian cada vez y un botón "Sorpréndeme".
+  - El taller muestra tus ideas de cine que aún no tienen obra.
+- **Cuaderno.** Las pestañas son **Árbol · Calendario · Lista**.
+  - La lista muestra todos tus pensamientos, por fecha o juntos, con buscador y filtro por emoción.
+  - El bosque del año se abre desde el árbol y ahora es un paisaje: un árbol por mes, unidos por un sendero.
+- **Emociones en vez de temperatura.** Hay 11 emociones con intensidad suave, media o intensa, y puedes elegir hasta dos por pensamiento; la hoja lleva los dos colores. Las temperaturas de la 0.4 se convierten solas: Helada → tristeza intensa, Fría → tristeza suave, Templada → calma, Cálida → alegría, Ardiente → ira intensa.
+- **Datos:** la base de datos pasa a la versión 4 solo para agregar los sistemas; lo demás no se toca.
 
 ## Novedades de la 0.4
 
@@ -106,11 +133,13 @@ Es JavaScript sin dependencias ni paso de compilación:
 | `js/fountain.js` | Lector de Fountain para la vista de guion |
 | `js/core.js` | Estado, utilidades, navegación y componentes |
 | `js/views-journal.js` | Cuaderno privado y calendario |
-| `js/journal-tree.js` | Árbol del mes y bosque del cuaderno |
-| `js/nuclei.js` | Núcleos (proyectos) y preguntas |
+| `js/journal-tree.js` | Árbol del mes y bosque del año |
+| `js/nuclei.js` | Núcleos, sistemas y preguntas |
 | `js/tags.js` | Editor de tags |
-| `js/map.js` | Mapa de canicas, núcleos y lunas |
-| `js/ink.js` | Dibujo directo sobre la hoja |
+| `js/map.js` | Mapa de canicas, núcleos, sistemas, región de cine y lunas |
+| `js/blocks.js` | Texto con imágenes intercaladas |
+| `js/dynamics.js` | Dinámicas de escritura creativa |
+| `js/ink.js` | Boceto sobre la hoja: colores, borrador y trazos que se despegan |
 | `js/links.js` | Vistas previas de links |
 | `js/views-*.js` | Pantallas: ideas, agenda, taller de cine y ajustes |
 | `js/app.js` | Eventos y arranque |
@@ -119,6 +148,7 @@ Es JavaScript sin dependencias ni paso de compilación:
 ## Ideas para siguientes versiones
 
 - Candado para ideas, poemas o pensamientos elegidos.
+- Resumen con IA de cada núcleo.
 - Una forma de recuperar ideas cifradas si olvidas la contraseña.
 - Notas de voz grabadas dentro de la app.
 - Sincronización automática entre dispositivos usando tu propio Google Drive o iCloud.

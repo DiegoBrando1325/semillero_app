@@ -8,32 +8,67 @@ function viewHome() {
   const active = S.ideas.filter((i) => i.stage !== 'archivada');
   const name = S.settings.name ? ', ' + S.settings.name : '';
   const today = fmtDate(new Date(), { weekday: 'long', day: 'numeric', month: 'long' });
-  const recent = active.slice().sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 8);
   const backupAge = daysSince(S.settings.lastBackup);
+  const now = new Date(); const y = now.getFullYear(); const m = now.getMonth();
 
   let html = '<header class="topbar"><div class="brand">' + logo() + '<span>Semillero</span></div><div class="topbar-actions">' +
     '<a class="icon-btn" href="#/settings" aria-label="Ajustes">' + icon('gear') + '</a></div></header>';
   html += '<section class="hello"><p class="muted small cap">' + esc(today) + '</p><h1 class="display">Hola' + esc(name) + '</h1></section>';
 
-  html += '<a class="new-sheet" href="#/capture"><span class="new-sheet-lines" aria-hidden="true"></span>' +
-    '<span class="new-sheet-text"><strong>Nueva idea</strong><span>Escribe, dibuja o pega un link</span></span>' +
-    '<span class="new-sheet-plus" aria-hidden="true">' + icon('plus', 26) + '</span></a>';
+  /* El árbol de este mes */
+  const T = buildTree(y, m); const c = T.counts;
+  const month = S.journal.filter((e) => inMonth(e, y, m));
+  const leafCols = month.filter((e) => e.kind === 'pensamiento').map(emoColor).filter(Boolean).slice(-5);
+  const mood = monthMood(y, m);
+  html += '<a class="home-tree" href="#/cuaderno" data-act="homeTree"><span class="home-tree-art">' + T.svg + '</span><span class="home-tree-fade"></span>' +
+    '<span class="home-tree-text"><span class="eyebrow-g">Tu árbol de ' + esc(fmtDate(now, { month: 'long' })) + '</span>' +
+    '<strong>' + (c.t + c.p + c.r ? 'Creció ' + c.t + (c.t === 1 ? ' hoja' : ' hojas') + ', ' + c.p + (c.p === 1 ? ' liana' : ' lianas') + ' y ' + c.r + (c.r === 1 ? ' raíz' : ' raíces') : 'Recién plantado: escribe tu primer pensamiento del mes') + '</strong>' +
+    (leafCols.length ? '<span class="row gap-s home-leaves">' + leafCols.map((col, k) => leafSvgColors([col], 'hl' + k, 12)).join('') + (mood ? '<span class="small muted">sobre todo ' + esc(mood.label.toLowerCase()) + '</span>' : '') + '</span>' : '') +
+    '</span></a>';
 
-  if (recent.length) {
-    html += '<section><div class="row between"><h2 class="h2">Recientes</h2><a class="small" href="#/mapa">Ver mapa</a></div>' +
-      '<div class="orb-row scroll-x">' + recent.map((i) => '<a class="orb-item" href="#/idea/' + i.id + '">' + orbHtml(i, 'md') + '<span>' + esc(ideaTitle(i)) + '</span></a>').join('') + '</div></section>';
-  }
+  html += '<a class="new-dark" href="#/capture"><span class="grow"><strong>Nueva idea</strong><span>Idea, pregunta, actualización, poema o pensamiento</span></span><span class="new-dark-plus">' + icon('plus', 22) + '</span></a>';
+  if (hasDraft()) html += '<a class="card row gap draft-card" href="#/capture">' + icon('plus') + '<span class="grow"><strong>Tienes un borrador sin guardar</strong><br><span class="small muted">' + esc(draftPreview()) + '</span></span>' + icon('chevron') + '</a>';
+
+  /* Lo último: ideas, preguntas y cuaderno */
+  const items = [];
+  active.forEach((i) => {
+    items.push({ at: i.createdAt, html: orbHtml(i, 'sm'), t: ideaTitle(i), s: 'Idea' + (i.nuclei && i.nuclei[0] && byId('nuclei', i.nuclei[0]) ? ' · ' + nucleusTitle(byId('nuclei', i.nuclei[0])) : ''), href: '#/idea/' + i.id });
+    (i.questions || []).forEach((q) => items.push({ at: q.at || i.updatedAt, html: '<span class="last-ico moon-ico">' + moonIcon(q.done) + '</span>', t: q.q, s: 'Pregunta · orbita ' + ideaTitle(i), href: '#/idea/' + i.id + '?q=' + q.id }));
+  });
+  S.journal.forEach((e) => items.push({ at: e.createdAt, html: '<span class="last-ico jk-bg-' + e.kind + '">' + icon(e.kind === 'poema' ? 'feather' : e.kind === 'terapia' ? 'book' : 'cloud', 18) + '</span>', t: journalTitle(e), s: journalKind(e.kind).label + ' · Cuaderno', href: '#/nota/' + e.id }));
+  const last = items.filter((x) => x.at).sort((a, b) => String(b.at).localeCompare(String(a.at))).slice(0, 3);
+  if (last.length) html += '<section class="card last-card"><div class="row between"><h2 class="h3 m0">Lo último</h2><a class="small" href="#/ideas">Ver todo</a></div>' +
+    last.map((x) => '<a class="last-row" href="' + x.href + '">' + x.html + '<span class="grow"><strong>' + esc(x.t) + '</strong><span class="small muted">' + esc(x.s) + '</span></span><span class="small muted">' + esc(relShort(x.at)) + '</span></a>').join('') + '</section>';
+
+  /* Cine y agenda, lado a lado */
+  const work = S.works.slice().sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)))[0];
+  const cineIdea = active.filter((i) => i.sectors.includes('Cine')).sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)))[0];
+  if (!UI.dyn) UI.dyn = { scope: 'home', id: pickOne(DYNAMICS).id };
+  const dyn = dynById(UI.dyn.id);
+  const cineBody = work ? '<strong>' + esc(work.title || 'Obra sin título') + '</strong><span class="small">' + plural(workFragments(work).length, 'fragmento', 'fragmentos') + ' · ' + plural(S.adaptations.filter((a) => a.workId === work.id).length, 'adaptación', 'adaptaciones') + '</span>'
+    : cineIdea ? '<strong>' + esc(ideaTitle(cineIdea)) + '</strong><span class="small">Idea de cine</span>' : '<strong>Tu taller de cine</strong><span class="small">Escenas, diálogos y tramas</span>';
+  const up = S.sessions.filter((x) => !x.done && parseLocal(x.start) >= startOfToday()).sort((a, b) => a.start.localeCompare(b.start)).slice(0, 3);
+  const agendaRows = up.map((x) => '<span class="ag-row"><span class="ag-bar"></span><span class="grow"><span class="small muted">' + esc(sessionWhen(x)) + '</span><span class="ag-t">' + esc(targetTitle(x.target)) + '</span></span></span>');
+  if (S.settings.nextTherapy && agendaRows.length < 3) agendaRows.push('<span class="ag-row"><span class="ag-bar t"></span><span class="grow"><span class="small muted">' + esc(therapyDateLabel(S.settings.nextTherapy)) + '</span><span class="ag-t">Terapia · ' + pendingTopics().length + ' temas</span></span></span>');
+  html += '<div class="home-grid"><a class="cine-card" href="#/cine"><span class="row gap-s cine-h">' + icon('film', 17) + 'Cine</span>' + cineBody +
+    '<span class="cine-dyn">' + icon('dice', 14) + esc(dyn.name) + '</span></a>' +
+    '<a class="agenda-card" href="#/agenda"><span class="row gap-s cine-h">' + icon('cal', 17) + 'Agenda</span>' + (agendaRows.length ? agendaRows.join('') : '<span class="small muted">Sin sesiones próximas. Agenda una para avanzar un proyecto.</span>') + '</a></div>';
 
   const extra = [];
-  if (hasDraft()) extra.push('<a class="card row gap draft-card" href="#/capture">' + icon('plus') + '<span class="grow"><strong>Tienes un borrador sin guardar</strong><br><span class="small muted">' + esc(draftPreview()) + '</span></span>' + icon('chevron') + '</a>');
   const topics = typeof pendingTopics === 'function' ? pendingTopics() : [];
-  if (topics.length) extra.push('<a class="card row gap" href="#/cuaderno">' + icon('book') + '<span class="grow"><strong>' + topics.length + (topics.length === 1 ? ' tema' : ' temas') + ' para tu próxima sesión</strong><br><span class="small muted">Cuaderno' + (S.settings.nextTherapy ? ' · ' + esc(therapyDateLabel(S.settings.nextTherapy)) : '') + '</span></span>' + icon('chevron') + '</a>');
+  if (topics.length && !S.settings.nextTherapy) extra.push('<a class="card row gap" href="#/cuaderno">' + icon('book') + '<span class="grow"><strong>' + topics.length + (topics.length === 1 ? ' tema' : ' temas') + ' para tu próxima sesión</strong><br><span class="small muted">Cuaderno</span></span>' + icon('chevron') + '</a>');
   if (S.inbox.length) extra.push('<a class="card row gap" href="#/inbox">' + icon('inbox') + '<span class="grow"><strong>' + S.inbox.length + ' en la bandeja</strong><br><span class="small muted">Capturas de antes, sin clasificar</span></span>' + icon('chevron') + '</a>');
-  if (backupAge >= 7 && S.ideas.length) extra.push('<a class="card row gap warn-card" href="#/settings">' + icon('lock') + '<span class="grow"><strong>Haz un respaldo</strong><br><span class="small">' + (S.settings.lastBackup ? 'Último respaldo ' + relDays(S.settings.lastBackup) : 'Aún no tienes respaldo fuera del teléfono') + '</span></span>' + icon('chevron') + '</a>');
+  if (backupAge >= 7 && (S.ideas.length || S.journal.length)) extra.push('<a class="backup-row" href="#/settings">' + icon('shield', 19) + '<span class="grow"><strong>Respaldo pendiente</strong> · ' + (S.settings.lastBackup ? 'el último fue ' + relDays(S.settings.lastBackup) : 'aún no tienes respaldo fuera del teléfono') + '</span>' + icon('chevron', 16) + '</a>');
   if (extra.length) html += '<section class="stack">' + extra.join('') + '</section>';
-
-  html += '<section class="quick-links"><a href="#/cine">' + icon('film', 18) + 'Taller de cine</a><a href="#/agenda">' + icon('clock', 18) + 'Agenda</a></section>';
   return html;
+}
+
+function relShort(iso) {
+  const d = daysSince(iso);
+  if (d <= 0) { const h = Math.floor((Date.now() - new Date(iso).getTime()) / 3600000); return h < 1 ? 'ahora' : 'hace ' + h + ' h'; }
+  if (d === 1) return 'ayer';
+  if (d < 7) return fmtDate(new Date(iso), { weekday: 'short' });
+  return fmtDate(new Date(iso), { day: 'numeric', month: 'short' });
 }
 
 function logo() {
@@ -55,9 +90,9 @@ function viewIdeas(qs) {
   const sectorChips = chip('Todos los sectores', { on: !f.sector, data: { act: 'filterSector', sector: '' } }) +
     S.settings.sectors.map((s) => chip(s, { on: f.sector === s, color: sectorColor(s), data: { act: 'filterSector', sector: s } })).join('') +
     '<a class="chip ghost" href="#/tags">Editar tags</a>';
-  const nucs = S.nuclei.slice().sort((a, b) => (a.status === 'activo' ? 0 : 1) - (b.status === 'activo' ? 0 : 1) || b.updatedAt.localeCompare(a.updatedAt));
+  const nucs = S.nuclei.slice().sort((a, b) => (a.status === 'activo' ? 0 : 1) - (b.status === 'activo' ? 0 : 1) || String(b.updatedAt).localeCompare(String(a.updatedAt)));
   const nucRow = '<section class="section"><div class="row between"><h2 class="h2 m0">Núcleos</h2><button class="link-btn small" data-act="nucNew">+ Núcleo</button></div>' +
-    (nucs.length ? '<div class="nuc-row scroll-x">' + nucs.map(nucleusBadge).join('') + '</div>' : '<p class="small muted">Un núcleo es un proyecto: ata a él ideas que no se parecen entre sí pero sirven a lo mismo.</p>') + '</section>';
+    (nucs.length ? '<div class="nuc-row scroll-x">' + S.systems.map(systemBadge).join('') + nucs.map(nucleusBadge).join('') + '</div>' : '<p class="small muted">Un núcleo es un proyecto: ata a él ideas que no se parecen entre sí pero sirven a lo mismo.</p>') + '</section>';
   onMount(() => { renderIdeaList(); });
   return topbar({ title: 'Jardín', sub: 'Todas tus ideas', actions: '<a class="btn small-btn" href="#/capture">' + icon('plus', 16) + 'Nueva</a>' }) +
     '<label class="search"><span class="sr">Buscar</span><input id="idea-search" type="search" placeholder="Buscar en tus ideas" value="' + esc(f.q) + '"></label>' +
@@ -77,7 +112,7 @@ function renderIdeaList() {
   if (f.q.trim()) {
     const raw = f.q.trim().toLowerCase();
     list = list.filter((i) => {
-      const hay = [i.title, i.body, Object.values(i.answers).join(' ')].join(' ').toLowerCase();
+      const hay = [i.title, plainText(i.body), Object.values(i.answers).join(' ')].join(' ').toLowerCase();
       if (hay.includes(raw)) return true;
       const t = ideaTokens(i); let hit = false; q.forEach((w) => { if (t.has(w)) hit = true; }); return hit;
     });
@@ -94,10 +129,11 @@ Object.assign(ACTIONS, {
 /* ================= DETALLE DE IDEA ================= */
 route(/^#\/idea\/([^/?]+)$/, viewIdea, 'ideas');
 
-function hojaHtml(owner, title, body, attrsTitle, attrsBody, ink) {
+function hojaHtml(owner, title, body, attrsTitle, attrsBody, ink, opts) {
+  opts = opts || {};
   return '<div class="hoja" id="hoja" data-owner="' + owner + '">' + inkLayer(ink) +
-    '<label class="sr" for="hoja-title">Título</label><textarea id="hoja-title" class="hoja-title autosize" rows="1" placeholder="Título" enterkeyhint="next" ' + attrsTitle + '>' + esc(title) + '</textarea>' +
-    '<label class="sr" for="hoja-body">Nota</label><textarea id="hoja-body" class="hoja-body autosize" rows="3" placeholder="Escribe libremente. La primera oración se vuelve el título." ' + attrsBody + '>' + esc(body) + '</textarea>' +
+    '<label class="sr" for="hoja-title">Título</label><textarea id="hoja-title" class="hoja-title autosize" rows="1" placeholder="' + esc(opts.titlePh || 'Título') + '" enterkeyhint="next" ' + attrsTitle + '>' + esc(title) + '</textarea>' +
+    blocksHtml(owner, body, opts.photos || [], opts.bodyPh) +
     '</div>' +
     '<button type="button" id="ink-fab" class="ink-fab" data-act="inkToggle" aria-pressed="false" aria-label="Dibujar en la hoja"><svg class="ic" width="24" height="24" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>';
 }
@@ -147,14 +183,27 @@ function viewIdea(id, qs) {
     else if (!idea.title && !idea.body) $('#hoja-title').focus();
   });
 
-  let html = topbar({ title: '', back: '#/ideas', actions: '<a class="icon-btn" href="#/mapa" aria-label="Ver en el mapa"><svg class="ic" width="20" height="20" viewBox="0 0 24 24"><circle cx="6" cy="7" r="3"/><circle cx="18" cy="9" r="3"/><circle cx="11" cy="18" r="3"/><path d="M8.6 8.4 9.8 15.3M8.9 6.6l6.2 1.6M16.4 11.6l-3.6 4.2"/></svg></a>' });
+  /* Abierta desde un núcleo: atrás regresa al núcleo y las flechas recorren sus ideas. */
+  const from = qs && qs.get('from');
+  let nucCtx = null;
+  if (from && from.startsWith('n:')) {
+    const nid = from.slice(2); const n = byId('nuclei', nid);
+    if (n && idea.nuclei.includes(nid)) { const list = nucleusIdeas(nid); nucCtx = { n, list, k: list.findIndex((x) => x.id === id) }; }
+  }
+  let html;
+  if (nucCtx) {
+    const { n, list, k } = nucCtx; const q = '?from=n:' + n.id;
+    const prev = list[k - 1]; const next = list[k + 1];
+    html = '<header class="topbar crumb-bar"><a class="crumb" href="#/nucleo/' + n.id + '" aria-label="Volver al núcleo ' + esc(nucleusTitle(n)) + '">' + icon('back') + nucOrb(n, 'xs') + '<span>' + esc(nucleusTitle(n)) + '</span></a>' +
+      '<div class="pager">' + (prev ? '<a class="icon-btn sm" href="#/idea/' + prev.id + q + '" aria-label="Idea anterior del núcleo">' + icon('back', 18) + '</a>' : '<span class="icon-btn sm off" aria-hidden="true">' + icon('back', 18) + '</span>') +
+      '<span class="small muted">' + (k + 1) + ' de ' + list.length + '</span>' +
+      (next ? '<a class="icon-btn sm" href="#/idea/' + next.id + q + '" aria-label="Siguiente idea del núcleo">' + icon('chevron', 18) + '</a>' : '<span class="icon-btn sm off" aria-hidden="true">' + icon('chevron', 18) + '</span>') + '</div></header>';
+  } else html = topbar({ title: '', back: '#/ideas', actions: '<a class="icon-btn" href="#/mapa" aria-label="Ver en el mapa"><svg class="ic" width="20" height="20" viewBox="0 0 24 24"><circle cx="6" cy="7" r="3"/><circle cx="18" cy="9" r="3"/><circle cx="11" cy="18" r="3"/><path d="M8.6 8.4 9.8 15.3M8.9 6.6l6.2 1.6M16.4 11.6l-3.6 4.2"/></svg></a>' });
 
-  html += hojaHtml('ideas|' + id, idea.title, idea.body, fld('title'), fld('body'), idea.ink);
+  html += hojaHtml('ideas|' + id, idea.title, idea.body, fld('title'), '', idea.ink, { photos: idea.photos });
   html += '<div id="relics" class="relics" data-id="' + id + '">' + relicsHtml(idea) + '</div>';
 
-  html += '<div class="thumbs">' + idea.photos.map((p) =>
-    '<button class="thumb" data-act="viewPhoto" data-blob="' + p + '" data-owner="ideas|' + id + '" aria-label="Ver foto"><img alt="" data-blob="' + p + '"></button>').join('') +
-    '<label class="thumb add">' + icon('camera') + '<span>Foto</span><input type="file" accept="image/*" multiple hidden data-change="ideaPhotos" data-id="' + id + '"></label></div>';
+  html += '<div class="cap-tools idea-tools" role="toolbar" aria-label="Agregar a la hoja"><label class="tool-btn">' + icon('image', 19) + '<span>Imagen en el texto</span><input type="file" accept="image/*" multiple hidden data-change="blkImages" data-key="ideas|' + id + '"></label></div>';
 
   html += '<section class="section"><h2 class="h2">Estado</h2><div class="chips">' + STAGES.slice(0, 4).map((s) =>
     chip(s.label, { on: idea.stage === s.id, data: { act: 'ideaStage', id, stage: s.id } })).join('') + '</div>' +
@@ -173,7 +222,7 @@ function viewIdea(id, qs) {
   const nucs = idea.nuclei.map((n) => byId('nuclei', n)).filter(Boolean);
   const freeNucs = S.nuclei.filter((n) => !idea.nuclei.includes(n.id));
   html += '<section class="section"><div class="row between"><h2 class="h2 m0">Núcleos</h2><button class="link-btn small" data-act="ideaToNucleus" data-id="' + id + '">Convertir en núcleo</button></div>' +
-    (nucs.length ? '<div class="chips">' + nucs.map((n, k) => '<span class="chip on-soft nuc-chip"><span class="nuc-orb xs" aria-hidden="true"></span><a href="#/nucleo/' + n.id + '">' + esc(nucleusTitle(n)) + '</a>' +
+    (nucs.length ? '<div class="chips">' + nucs.map((n, k) => '<span class="chip on-soft nuc-chip">' + nucOrb(n, 'xs') + '<a href="#/nucleo/' + n.id + '">' + esc(nucleusTitle(n)) + '</a>' +
       (k === 0 ? '<span class="pill on">principal</span>' : '<button class="link-btn small" data-act="ideaNucPrimary" data-idea="' + id + '" data-nuc="' + n.id + '">hacer principal</button>') +
       '<button class="x" data-act="ideaNucDetach" data-idea="' + id + '" data-nuc="' + n.id + '" aria-label="Quitar de ' + esc(nucleusTitle(n)) + '">×</button></span>').join('') + '</div>'
       : '<p class="small muted">' + (idea.stage === 'proyecto' ? 'Esta idea ya es un proyecto: conviértela en núcleo para atarle otras ideas.' : 'Átala a un proyecto (puede estar en varios).') + '</p>') +
@@ -266,7 +315,7 @@ async function combineIdeas(aId, bId) {
   if (!a || !b) return;
   const idea = newIdea({
     title: ideaTitle(a) + ' + ' + ideaTitle(b),
-    body: 'Combinación de dos ideas.\n\n— ' + ideaTitle(a) + ':\n' + (a.body || '').slice(0, 800) + '\n\n— ' + ideaTitle(b) + ':\n' + (b.body || '').slice(0, 800),
+    body: 'Combinación de dos ideas.\n\n— ' + ideaTitle(a) + ':\n' + plainText(a.body).slice(0, 800) + '\n\n— ' + ideaTitle(b) + ':\n' + plainText(b.body).slice(0, 800),
     sectors: Array.from(new Set(a.sectors.concat(b.sectors))),
     related: [aId, bId]
   });
@@ -322,8 +371,8 @@ Object.assign(ACTIONS, {
   },
   async deletePhoto(el) {
     const [k, id] = el.dataset.owner.split('|');
-    const obj = byId(k, id);
-    if (obj) { obj.photos = obj.photos.filter((p) => p !== el.dataset.blob); await persist(k, obj); }
+    const obj = k === 'cap' ? UI.cap : byId(k, id);
+    if (obj) { obj.photos = obj.photos.filter((p) => p !== el.dataset.blob); if (k === 'cap') saveDraft(true); else await persist(k, obj); }
     await DB.del('blobs', el.dataset.blob);
     closeSheet(); rerender();
   }
@@ -343,19 +392,40 @@ Object.assign(CHANGES, {
 /* ================= NUEVA IDEA ================= */
 route(/^#\/capture$/, viewCapture, '');
 
+const CAP_TYPES = [
+  { id: 'idea', label: 'Idea', ic: 'seed', hint: 'Una semilla nueva para tu jardín.' },
+  { id: 'pregunta', label: 'Pregunta', ic: 'moon', hint: 'Una luna que orbita una de tus ideas.' },
+  { id: 'actualizacion', label: 'Actualización', ic: 'update', hint: 'Se suma a la bitácora de una idea que ya existe.' },
+  { id: 'poema', label: 'Poema', ic: 'feather', hint: 'Va a tu Cuaderno privado: fuera del mapa y de la IA.' },
+  { id: 'pensamiento', label: 'Pensamiento', ic: 'cloud', hint: 'Va a tu Cuaderno privado: fuera del mapa y de la IA.' }
+];
+const isAnchoredKind = (k) => k === 'pregunta' || k === 'actualizacion';
+
 function resetCapture() {
   /* La hoja aún en pantalla ya no es un borrador: que el cambio de pestaña no la vuelva a guardar. */
   const h = $('#hoja'); if (h && h.dataset.owner === 'cap') h.dataset.owner = 'done';
-  UI.cap = { title: '', text: '', photos: [], dest: 'nueva', anchorId: '', ink: null, asQuestion: false }; DB.del('settings', 'draft'); updateDraftDot(); }
+  UI.cap = { kind: 'idea', therapy: false, title: '', text: '', photos: [], anchorId: '', ink: null, tags: [], nucleusId: '' };
+  UI.blkCaret = null;
+  DB.del('settings', 'draft'); updateDraftDot();
+}
+/* Borradores de la 0.4 (dest: nueva / anclar / cuaderno) pasan al modelo de tipos. */
+function normalizeCap(c) {
+  if (c.dest) { c.kind = c.dest === 'cuaderno' ? 'pensamiento' : c.dest === 'anclar' ? (c.asQuestion ? 'pregunta' : 'actualizacion') : 'idea'; delete c.dest; delete c.asQuestion; }
+  if (!c.kind) c.kind = 'idea';
+  if (!Array.isArray(c.tags)) c.tags = [];
+  if (!Array.isArray(c.photos)) c.photos = [];
+  if (c.nucleusId == null) c.nucleusId = '';
+  return c;
+}
 
 /* ---------- Borrador automático de la captura ---------- */
 function hasDraft() {
   const c = UI.cap;
-  return !!(c && (((c.title || '').trim()) || ((c.text || '').trim()) || (c.photos || []).length || (c.ink && c.ink.strokes && c.ink.strokes.length)));
+  return !!(c && (((c.title || '').trim()) || plainText(c.text) || (c.photos || []).length || (c.ink && c.ink.strokes && c.ink.strokes.length)));
 }
 function draftPreview() {
-  const c = UI.cap; const t = ((c.title || '') + ' ' + (c.text || '')).trim();
-  return t ? (t.length > 60 ? t.slice(0, 57) + '…' : t) : ((c.photos || []).length ? 'Con fotos' : 'Con un dibujo');
+  const c = UI.cap; const t = ((c.title || '') + ' ' + plainText(c.text)).trim();
+  return t ? (t.length > 60 ? t.slice(0, 57) + '…' : t) : ((c.photos || []).length ? 'Con imágenes' : 'Con un dibujo');
 }
 let draftTimer;
 function saveDraft(now) {
@@ -365,42 +435,79 @@ function saveDraft(now) {
 }
 function updateDraftDot() { const t = $('.tab-new'); if (t) t.classList.toggle('has-draft', hasDraft() && !location.hash.startsWith('#/capture')); }
 
+function recentIdeas(n) {
+  return S.ideas.filter((i) => i.stage !== 'archivada').sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || ''))).slice(0, n);
+}
+
+function anchorResults(q) {
+  q = (q || '').trim().toLowerCase();
+  if (!q) {
+    const list = recentIdeas(12);
+    return '<div class="orb-row scroll-x anchor-orbs">' + list.map((i) => '<button type="button" class="orb-item" data-act="capAnchor" data-id="' + i.id + '">' + orbHtml(i, 'md') + '<span>' + esc(ideaTitle(i)) + '</span></button>').join('') + '</div>';
+  }
+  const list = S.ideas.filter((i) => i.stage !== 'archivada' && (ideaTitle(i) + ' ' + plainText(i.body) + ' ' + i.sectors.join(' ')).toLowerCase().includes(q)).slice(0, 8);
+  if (!list.length) return '<p class="small muted">No encontré ideas con eso.</p>';
+  return '<div class="stack-s">' + list.map((i) => '<button type="button" class="anchor-row" data-act="capAnchor" data-id="' + i.id + '">' + orbHtml(i, 'xs') + '<span class="grow">' + esc(ideaTitle(i)) + '</span>' + icon('chevron', 16) + '</button>').join('') + '</div>';
+}
+
+function anchorPickerHtml(c) {
+  const a = c.anchorId && byId('ideas', c.anchorId);
+  return '<section class="card anchor-pick" id="anchor-pick"><div class="row between"><h2 class="h3 m0">' + (c.kind === 'pregunta' ? '¿Qué idea orbita?' : '¿A qué idea pertenece?') + '</h2>' +
+    (a ? '' : '<span class="req">obligatorio</span>') + '</div>' +
+    (a ? '<div class="row gap anchor-sel">' + orbHtml(a, 'sm') + '<strong class="grow">' + esc(ideaTitle(a)) + '</strong><button type="button" class="link-btn small" data-act="capAnchor" data-id="">Cambiar</button></div>'
+      : '<label class="search-field">' + icon('search', 18) + '<span class="sr">Buscar idea</span><input type="search" id="anchor-q" placeholder="Buscar entre tus ideas" autocomplete="off" enterkeyhint="search"></label>' +
+        '<div id="anchor-results">' + anchorResults('') + '</div>') +
+    '</section>';
+}
+
+function capTagsHtml(c) {
+  const all = S.settings.sectors;
+  const sel = c.tags.filter((t) => all.includes(t));
+  const rest = all.filter((t) => !sel.includes(t));
+  const nucSel = S.nuclei.length ? '<label class="mini-select"><span class="sr">Núcleo</span><select data-change="capNuc"><option value="">Sin núcleo</option>' +
+    S.nuclei.map((n) => '<option value="' + n.id + '"' + (c.nucleusId === n.id ? ' selected' : '') + '>' + esc(nucleusTitle(n)) + '</option>').join('') + '</select></label>' : '';
+  return '<section class="section cap-tags"><div class="row between"><h2 class="h3 m0">Tags</h2>' + nucSel + '</div><div class="chips scroll-x">' +
+    sel.map((t) => '<button type="button" class="chip tag-on" aria-pressed="true" data-act="capTag" data-tag="' + esc(t) + '" style="--tc:' + sectorColor(t) + '"><span class="dot" style="background:' + sectorColor(t) + '"></span>' + esc(t) + '<span class="x" aria-hidden="true">×</span></button>').join('') +
+    rest.map((t) => '<button type="button" class="chip tag-off" aria-pressed="false" data-act="capTag" data-tag="' + esc(t) + '"><span class="dot" style="background:' + sectorColor(t) + '"></span>' + esc(t) + '</button>').join('') +
+    '<button type="button" class="chip ghost" data-act="capNewTag">+ Nuevo</button></div></section>';
+}
+
 function viewCapture() {
-  if (!UI.cap || UI.cap.dest === 'bandeja' || UI.cap.title == null) resetCapture();
-  const c = UI.cap;
-  const anchor = c.anchorId && byId('ideas', c.anchorId);
+  if (!UI.cap || UI.cap.title == null) resetCapture();
+  const c = normalizeCap(UI.cap);
+  const T = CAP_TYPES.find((t) => t.id === c.kind) || CAP_TYPES[0];
+  const anchored = isAnchoredKind(c.kind);
+  const journal = c.kind === 'poema' || c.kind === 'pensamiento';
   const hasIdeas = S.ideas.some((i) => i.stage !== 'archivada');
   onMount(() => {
     fitInk();
-    const t = $('#hoja-title'); if (t && !c.title && !c.text && c.dest === 'nueva') t.focus();
-    if (c.dest === 'anclar') MAP.mount($('#anchor-map'), { edit: false, picked: c.anchorId, onTap: (id) => { syncCapFields(); c.anchorId = id; MAP.pick(id); updateAnchorLabel(); } });
+    const t = $('#hoja-title'); if (t && !c.title && !plainText(c.text) && !(anchored && !c.anchorId)) t.focus();
   });
   const endsQ = /\?\s*$/.test((c.title || '').trim());
-  return topbar({ title: '', back: '#/', actions: '<button class="btn small-btn" data-act="capSave">' + (c.dest === 'anclar' ? 'Anclar' : 'Guardar') + '</button>' }) +
-    (hasDraft() ? '<p class="draft-note small row gap-s">' + icon('check', 14) + '<span class="grow">Borrador guardado en el teléfono</span><button class="link-btn small" data-act="capDiscard">Descartar</button></p>' : '') +
-    (c.dest === 'cuaderno' ? hojaHtml('cap', c.title, c.text, '', '', c.ink).replace('class="ink-fab"', 'class="ink-fab" style="display:none"') : hojaHtml('cap', c.title, c.text, '', '', c.ink)) +
-    '<div class="thumbs" id="cap-photos">' + c.photos.map((p) => '<span class="thumb"><img alt="" data-blob="' + p + '"></span>').join('') +
-    '<label class="thumb add">' + icon('camera') + '<span>Foto</span><input type="file" accept="image/*" multiple hidden data-change="capPhotos"></label></div>' +
-    '<section class="section"><h2 class="h2">¿A dónde va?</h2><div class="seg2" role="group">' +
-    '<button type="button" class="seg2-btn" aria-pressed="' + (c.dest === 'nueva') + '" data-act="capDest" data-dest="nueva">Idea nueva</button>' +
-    (hasIdeas ? '<button type="button" class="seg2-btn" aria-pressed="' + (c.dest === 'anclar') + '" data-act="capDest" data-dest="anclar">Anclar</button>' : '') +
-    '<button type="button" class="seg2-btn" aria-pressed="' + (c.dest === 'cuaderno') + '" data-act="capDest" data-dest="cuaderno">Cuaderno</button></div>' +
-    (c.dest === 'cuaderno' ? '<p class="small muted">Irá a tu <strong>Cuaderno</strong> privado: no aparece en el mapa ni se envía a la IA. Ahí eliges si es poema, pensamiento o algo para terapia.</p>' : '') +
-    (c.dest === 'nueva' && endsQ && hasIdeas ? '<button class="card soft-card row gap q-suggest" data-act="capAsQuestion">' + moonIcon(false) + '<span class="grow small"><strong>¿Es una pregunta?</strong> Ánclala como luna de una idea.</span>' + icon('chevron') + '</button>' : '') +
-    (c.dest === 'anclar' ? '<label class="switch"><input type="checkbox" id="cap-asq" data-change="capAsQ"' + (c.asQuestion ? ' checked' : '') + '><span>Guardarla como pregunta (una luna de esa idea)</span></label>' : '') +
-    (c.dest === 'anclar' ? '<div id="anchor-map" class="map-stage anchor-map"></div><p class="small muted" id="anchor-label">' + (anchor ? 'Se anclará a <strong>' + esc(ideaTitle(anchor)) + '</strong>' : 'Toca la canica donde quieres anclarla.') + '</p>' : '') +
-    '</section><p class="small muted row gap-s">' + icon('lock', 14) + 'Se guarda solo en este dispositivo.</p>';
-}
+  const titlePh = { idea: 'Título', pregunta: '¿Cuál es la pregunta?', actualizacion: 'Qué avanzó (opcional)', poema: 'Título del poema (opcional)', pensamiento: 'Lo que estás pensando' }[c.kind];
+  const bodyPh = { idea: 'Escribe libremente. La primera oración se vuelve el título.', pregunta: 'Contexto, si hace falta', actualizacion: 'Lo nuevo de esta idea', poema: 'Versos…', pensamiento: 'Sigue escribiendo…' }[c.kind];
 
-function updateAnchorLabel() {
-  const el = $('#anchor-label'); const a = byId('ideas', UI.cap.anchorId);
-  if (el && a) el.innerHTML = 'Se anclará a <strong>' + esc(ideaTitle(a)) + '</strong>';
+  let html = topbar({ title: '', back: '#/', actions: '<button class="btn small-btn" data-act="capSave">Guardar</button>' });
+  if (hasDraft()) html += '<p class="draft-note small row gap-s">' + icon('check', 14) + '<span class="grow">Borrador guardado en el teléfono</span><button class="link-btn small" data-act="capDiscard">Descartar</button></p>';
+  html += '<div class="cap-types" role="group" aria-label="¿Qué vas a guardar?">' + CAP_TYPES.map((t) =>
+    '<button type="button" class="cap-type" aria-pressed="' + (t.id === c.kind) + '" data-act="capKind" data-kind="' + t.id + '"' + (isAnchoredKind(t.id) && !hasIdeas ? ' disabled' : '') + '>' + icon(t.ic, 20) + '<span>' + t.label + '</span></button>').join('') + '</div>';
+  html += '<p class="small muted cap-hint row gap-s">' + (journal ? icon('lock', 13) : '') + '<span>' + T.hint + '</span></p>';
+  if (anchored) html += anchorPickerHtml(c);
+  if (c.kind === 'pensamiento') html += '<label class="switch"><input type="checkbox" data-change="capTherapy"' + (c.therapy ? ' checked' : '') + '><span>Para terapia: lo llevo a mi próxima sesión</span></label>';
+  html += hojaHtml('cap', c.title, c.text, '', '', c.ink, { photos: c.photos, titlePh, bodyPh });
+  if (c.kind === 'idea' && endsQ && hasIdeas) html += '<button class="card soft-card row gap q-suggest" data-act="capKind" data-kind="pregunta">' + moonIcon(false) + '<span class="grow small"><strong>¿Es una pregunta?</strong> Guárdala como luna de una idea.</span>' + icon('chevron') + '</button>';
+  if (c.kind === 'idea') html += capTagsHtml(c);
+  html += '<div class="cap-tools" role="toolbar" aria-label="Agregar a la hoja">' +
+    '<label class="tool-btn">' + icon('image', 19) + '<span>Imagen</span><input type="file" accept="image/*" multiple hidden data-change="blkImages" data-key="cap"></label>' +
+    '<button type="button" class="tool-btn" data-act="inkToggle">' + icon('pen', 19) + '<span>Boceto</span></button></div>';
+  html += '<p class="small muted row gap-s">' + icon('lock', 14) + 'Se guarda solo en este dispositivo.</p>';
+  return html;
 }
 
 function syncCapFields() {
   const c = UI.cap; if (!c) return;
-  const t = $('#hoja-title'); if (t) c.title = t.value;
-  const b = $('#hoja-body'); if (b) c.text = b.value;
+  const t = $('#hoja-title'); if (t && isCaptureSheet()) c.title = t.value;
+  const r = $('.blocks[data-key="cap"]'); if (r) { const b = readBlocks(r); c.text = joinBlocks(b.segs, b.ids); }
 }
 
 /* Divide un texto en título (primera oración o línea) y cuerpo. */
@@ -421,55 +528,77 @@ async function appendCaptureToIdea(idea, cap) {
   const text = [cap.title, cap.text].filter((x) => x && x.trim()).join('\n');
   if (text) idea.body = (idea.body ? idea.body + '\n\n' : '') + '— ' + stamp + ':\n' + text;
   if (cap.link) idea.links.push({ url: cap.link, label: '' });
-  if (cap.photos && cap.photos.length) idea.photos = idea.photos.concat(cap.photos);
+  if (cap.photos && cap.photos.length) idea.photos = idea.photos.concat(cap.photos.filter((p) => !idea.photos.includes(p)));
   await persist('ideas', idea);
 }
 
+async function inkBlob(ink, owner) {
+  const id = uid();
+  await DB.put('blobs', { id, data: inkToPng(ink), owner, createdAt: nowISO(), updatedAt: nowISO() });
+  return id;
+}
+
 Object.assign(ACTIONS, {
-  capDest(el) {
-    syncCapFields(); const prev = UI.cap.dest; UI.cap.dest = el.dataset.dest;
-    if (UI.cap.dest === 'anclar' && prev !== 'anclar') UI.cap.asQuestion = /\?\s*$/.test((UI.cap.title || '').trim());
+  homeTree() { UI.journalView = 'arbol'; UI.journalMonth = null; go('#/cuaderno'); },
+  capKind(el) {
+    syncCapFields(); UI.cap.kind = el.dataset.kind;
+    saveDraft(); rerender();
+    if (isAnchoredKind(UI.cap.kind) && !UI.cap.anchorId) setTimeout(() => { const q = $('#anchor-q'); if (q) q.focus(); }, 60);
+  },
+  capAnchor(el) { syncCapFields(); UI.cap.anchorId = el.dataset.id || ''; saveDraft(); rerender(); },
+  capTag(el) {
+    syncCapFields(); const t = el.dataset.tag; const tags = UI.cap.tags;
+    UI.cap.tags = tags.includes(t) ? tags.filter((x) => x !== t) : tags.concat([t]);
     saveDraft(); rerender();
   },
-  capAsQuestion() { syncCapFields(); UI.cap.dest = 'anclar'; UI.cap.asQuestion = true; saveDraft(); rerender(); },
+  async capNewTag() {
+    syncCapFields();
+    const name = (prompt('Nombre del nuevo tag') || '').trim(); if (!name) return;
+    if (!S.settings.sectors.includes(name)) { S.settings.sectors.push(name); ensureTagColors(); await saveSettings(); }
+    if (!UI.cap.tags.includes(name)) UI.cap.tags.push(name);
+    saveDraft(); rerender();
+  },
   async capDiscard() {
-    if (!confirm('¿Descartar el borrador? Se borra lo que escribiste, dibujaste y las fotos.')) return;
+    if (!confirm('¿Descartar el borrador? Se borra lo que escribiste, dibujaste y las imágenes.')) return;
     for (const p of UI.cap.photos || []) await DB.del('blobs', p);
     resetCapture(); rerender();
   },
   async capSave() {
     syncCapFields();
-    const c = UI.cap;
-    const hasInk = c.ink && c.ink.strokes && c.ink.strokes.length;
-    if (!c.title.trim() && !c.text.trim() && !c.photos.length && !hasInk) { toast('Escribe, dibuja o añade una foto'); return; }
+    const c = normalizeCap(UI.cap);
+    const hasInk = !!(c.ink && c.ink.strokes && c.ink.strokes.length);
+    const plain = plainText(c.text); const title = c.title.trim();
+    if (!title && !plain && !c.photos.length && !hasInk) { toast('Escribe, dibuja o añade una imagen'); return; }
     let target = '#/';
-    if (c.dest === 'cuaderno') {
-      if (!c.title.trim() && !c.text.trim()) { toast('El cuaderno guarda texto: escribe algo'); return; }
-      const photos = c.photos.slice();
-      const e = newJournal({ kind: 'pensamiento', text: [c.title.trim(), c.text.trim()].filter(Boolean).join('\n'), photos });
-      if (hasInk) { const id = uid(); await DB.put('blobs', { id, data: inkToPng(c.ink), owner: 'journal|' + e.id, createdAt: nowISO(), updatedAt: nowISO() }); e.photos.push(id); }
+    if (c.kind === 'poema' || c.kind === 'pensamiento') {
+      if (!title && !plain) { toast('El cuaderno guarda texto: escribe algo'); return; }
+      const kind = c.kind === 'pensamiento' && c.therapy ? 'terapia' : c.kind;
+      const e = newJournal({ kind, title: kind === 'poema' ? title : '', text: kind === 'poema' ? plain : [title, plain].filter(Boolean).join('\n'), photos: c.photos.slice() });
+      if (hasInk) e.photos.push(await inkBlob(c.ink, 'journal|' + e.id));
       await addItem('journal', e);
-      toast('Guardado en el cuaderno');
+      toast(kind === 'terapia' ? 'Guardado para tu próxima sesión' : 'Guardado en el cuaderno');
       resetCapture(); go('#/nota/' + e.id); return;
     }
-    if (c.dest === 'anclar') {
+    if (isAnchoredKind(c.kind)) {
       const idea = byId('ideas', c.anchorId);
-      if (!idea) { toast('Toca la canica donde quieres anclarla'); return; }
-      const cap = { title: c.title.trim(), text: c.text.trim(), photos: c.photos.slice(), createdAt: nowISO() };
-      if (hasInk) {
-        const id = uid();
-        await DB.put('blobs', { id, data: inkToPng(c.ink), owner: 'ideas|' + idea.id, createdAt: nowISO(), updatedAt: nowISO() });
-        cap.photos.push(id);
+      if (!idea) { toast(c.kind === 'pregunta' ? 'Elige la idea que orbita' : 'Elige la idea a la que pertenece'); const p = $('#anchor-pick'); if (p) p.scrollIntoView({ block: 'center', behavior: 'smooth' }); return; }
+      const photos = c.photos.slice(); let text = c.text;
+      if (hasInk) { const id = await inkBlob(c.ink, 'ideas|' + idea.id); photos.push(id); text = (text || '') + '\n[[img:' + id + ']]\n'; }
+      if (c.kind === 'pregunta') {
+        const q = [title, plain].filter(Boolean).join(' ');
+        if (!q) { toast('Escribe la pregunta'); return; }
+        const qq = await addQuestion(idea, q);
+        if (photos.length) { idea.photos = idea.photos.concat(photos); await persist('ideas', idea); }
+        toast('Nueva luna en ' + ideaTitle(idea)); target = '#/idea/' + idea.id + '?q=' + qq.id;
+      } else {
+        await appendCaptureToIdea(idea, { title, text, photos, createdAt: nowISO() });
+        toast('Actualización en ' + ideaTitle(idea)); target = '#/idea/' + idea.id;
       }
-      if (c.asQuestion && cap.title) {
-        const q = await addQuestion(idea, [cap.title, cap.text].filter(Boolean).join(' '));
-        if (cap.photos.length) { idea.photos = idea.photos.concat(cap.photos); await persist('ideas', idea); }
-        toast('Nueva luna en ' + ideaTitle(idea)); target = '#/idea/' + idea.id + '?q=' + q.id;
-      } else { await appendCaptureToIdea(idea, cap); toast('Anclada a ' + ideaTitle(idea)); target = '#/idea/' + idea.id; }
     } else {
-      let title = c.title.trim(); let body = c.text.trim();
-      if (!title && body) { const st = splitTitle(body); title = st.title; body = st.body; }
-      const idea = newIdea({ title, body, photos: c.photos.slice(), ink: hasInk ? c.ink : null });
+      let body = c.text; let t = title;
+      if (!t) { const b = parseBlocks(c.text, c.photos); const st = splitTitle(b.segs[0]); t = st.title; b.segs[0] = st.body; body = joinBlocks(b.segs, b.ids); }
+      const nuclei = c.nucleusId && byId('nuclei', c.nucleusId) ? [c.nucleusId] : [];
+      const idea = newIdea({ title: t, body, photos: c.photos.slice(), ink: hasInk ? c.ink : null, sectors: c.tags.filter((x) => S.settings.sectors.includes(x)), nuclei });
       await addItem('ideas', idea); toast('Idea sembrada'); target = '#/idea/' + idea.id;
     }
     resetCapture();
@@ -478,8 +607,8 @@ Object.assign(ACTIONS, {
 });
 
 Object.assign(CHANGES, {
-  async capPhotos(el) { syncCapFields(); toast('Guardando fotos…'); const ids = await storePhotos(el.files, 'inbox'); UI.cap.photos = UI.cap.photos.concat(ids); saveDraft(true); rerender(); },
-  capAsQ(el) { UI.cap.asQuestion = el.checked; saveDraft(); }
+  capTherapy(el) { UI.cap.therapy = el.checked; saveDraft(); },
+  capNuc(el) { UI.cap.nucleusId = el.value; saveDraft(); }
 });
 
 /* ================= BANDEJA ================= */
@@ -532,12 +661,12 @@ route(/^#\/ai\/([^/?]+)$/, viewAI, 'ideas');
 function ideaContext(idea, mode) {
   const set = QUESTION_SETS[idea.qset] || QUESTION_SETS.general;
   let ctx = 'Título: ' + ideaTitle(idea) + '\nEtapa: ' + stageLabel(idea.stage) + '\nSectores: ' + (idea.sectors.join(', ') || 'sin sector') +
-    '\n\nNotas del autor:\n' + ((idea.body || '(sin notas)').slice(0, 6000)) + '\n\nPreguntas guía:\n' +
+    '\n\nNotas del autor:\n' + ((plainText(idea.body) || '(sin notas)').slice(0, 6000)) + '\n\nPreguntas guía:\n' +
     set.items.map((it) => '- ' + it.q + ' ' + ((idea.answers[it.id] || '').trim() || '(sin responder)')).join('\n');
   if (idea.links.length) ctx += '\n\nLinks guardados: ' + idea.links.map((l) => l.url).join(', ');
   if (mode === 'conector') {
     const others = S.ideas.filter((i) => i.id !== idea.id && i.aiAllowed && i.stage !== 'archivada').slice(0, 40);
-    ctx += '\n\nOtras ideas del autor (solo las que permiten IA):\n' + (others.length ? others.map((o) => '- ' + ideaTitle(o) + ' [' + o.sectors.join(', ') + ']: ' + (o.body || '').replace(/\s+/g, ' ').slice(0, 220)).join('\n') : '(ninguna)');
+    ctx += '\n\nOtras ideas del autor (solo las que permiten IA):\n' + (others.length ? others.map((o) => '- ' + ideaTitle(o) + ' [' + o.sectors.join(', ') + ']: ' + plainText(o.body).replace(/\s+/g, ' ').slice(0, 220)).join('\n') : '(ninguna)');
   }
   return ctx;
 }

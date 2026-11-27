@@ -125,11 +125,7 @@ function buildTree(y, m) {
   return { svg: '<svg class="tree-svg" viewBox="0 0 ' + TREE_W + ' ' + TREE_H + '" aria-hidden="true">' + s.join('') + '</svg>', items, g, counts: { t: thoughts.length, p: poems.length, r: roots.length } };
 }
 
-function leafSvg(e) {
-  const t = tempOf(e); const c = t ? t.color : '#F4EEDC';
-  return '<svg viewBox="-10 -14 20 28" width="22" height="31" aria-hidden="true"><path d="M0 -13 C9 -7 9 7 0 13 C-9 7 -9 -7 0 -13Z" fill="' + c + '" stroke="#2F2A20" stroke-width="1.3"/>' +
-    '<path d="M0 -10 L0 11 M0 -2 L4 -6 M0 3 L-4 -1" stroke="#2F2A20" stroke-width=".8" opacity=".55" fill="none"/></svg>';
-}
+function leafSvg(e) { return leafSvgColors(emosOf(e).map((x) => x.color), 'tr-' + e.id); }
 
 function treeView() {
   const { y, m } = journalMonth();
@@ -138,7 +134,7 @@ function treeView() {
   const pct = (v, tot) => (v / tot * 100).toFixed(2) + '%';
   const selId = UI.treeSel && T.items.some((it) => it.e.id === UI.treeSel) ? UI.treeSel : null;
   const hit = T.items.map((it) => {
-    const label = it.kind === 'hoja' ? 'Pensamiento del ' + new Date(it.e.createdAt).getDate() + (tempOf(it.e) ? ', ' + tempOf(it.e).label : '') :
+    const label = it.kind === 'hoja' ? 'Pensamiento del ' + new Date(it.e.createdAt).getDate() + (emosOf(it.e).length ? ', ' + emosOf(it.e).map(emoLabel).join(' y ') : '') :
       it.kind === 'poema' ? 'Poema: ' + (it.e.title || journalTitle(it.e)) : 'Raíz: ' + journalTitle(it.e);
     return '<button type="button" class="tree-hit tk-' + it.kind + (it.e.id === selId ? ' sel' : '') + '" data-tree-id="' + it.e.id + '" data-kind="' + it.kind + '" style="left:' + pct(it.x, TREE_W) + ';top:' + pct(it.y, TREE_H) + (it.rot != null ? ';--rot:' + it.rot + 'deg' : '') + '" aria-label="' + esc(label) + '">' +
       (it.kind === 'hoja' ? leafSvg(it.e) : '') + '</button>';
@@ -151,11 +147,13 @@ function treeView() {
   html += '<div class="tree-wrap" id="tree-wrap" role="group" aria-label="Árbol del mes: toca una hoja, una flor o una raíz; arrastra una hoja para moverla">' + T.svg + '<div class="tree-layer">' + hit + '</div></div>';
   if (!c.t && !c.p && !c.r) html += '<p class="small muted center">Un arbolito recién plantado. Cada pensamiento será una hoja; cada poema, una liana; cada tema de terapia, una raíz.</p>';
   html += sel ? '<a class="card j-sel" href="#/nota/' + sel.id + '"><div class="row between"><span class="j-kind jk-' + sel.kind + '"><span class="day jk-' + sel.kind + '"></span>' + esc(journalKind(sel.kind).label) + '</span>' +
-    '<span class="row gap-s">' + tempChip(sel) + '<span class="small muted">' + esc(journalWhen(sel.createdAt)) + '</span></span></div>' +
+    '<span class="row gap-s">' + emoChip(sel) + '<span class="small muted">' + esc(journalWhen(sel.createdAt)) + '</span></span></div>' +
     (sel.kind === 'poema' ? (sel.title ? '<p class="j-card-title">' + esc(sel.title) + '</p>' : '') + '<p class="j-poem clamp6">' + esc(sel.text) + '</p>' : '<p class="clamp4 pre">' + esc(sel.text) + '</p>') +
     (statusLabel(sel) ? '<span class="j-status' + (sel.status === 'hablado' ? ' done' : '') + '">' + esc(statusLabel(sel)) + '</span>' : '') + '</a>'
     : (c.t + c.p + c.r ? '<p class="small muted center">Toca una hoja, una flor o una raíz para leerla. Mantén y arrastra una hoja para cambiarla de lugar.</p>' : '');
   if (moved) html += '<button class="link-btn small" data-act="treeReset">Volver las hojas a su orden original</button>';
+  html += '<button type="button" class="card forest-link" data-act="journalView" data-v="bosque" data-y="' + y + '"><span class="forest-link-art">' + forestThumb() + '</span>' +
+    '<span class="grow"><strong>Ver el bosque de ' + y + '</strong><span class="small muted">Todos los árboles del año en un solo paisaje</span></span>' + icon('chevron') + '</button>';
   return html;
 }
 
@@ -216,39 +214,108 @@ function miniTree(y, m) {
   s.push(bl.map(([x, yy, r]) => '<circle cx="' + x.toFixed(1) + '" cy="' + yy.toFixed(1) + '" r="' + r.toFixed(1) + '" fill="#5E9B3F"/>').join(''));
   th.forEach((e, i) => {
     const a = (200 + 140 * (i / Math.max(th.length - 1, 1))) * Math.PI / 180; const rr = i % 2 ? 0.42 : 0.72;
-    const x = ex + Math.cos(a) * rx * rr, yy = ey + Math.sin(a) * ry * rr + (rr < 0.6 ? 5 : 0); const t = tempOf(e);
-    s.push('<ellipse cx="' + x.toFixed(1) + '" cy="' + yy.toFixed(1) + '" rx="3.2" ry="5" fill="' + (t ? t.color : '#A9C98A') + '" stroke="#2F2A20" stroke-width=".7" transform="rotate(' + (a * 180 / Math.PI + 90).toFixed(0) + ' ' + x.toFixed(1) + ' ' + yy.toFixed(1) + ')"/>');
+    const x = ex + Math.cos(a) * rx * rr, yy = ey + Math.sin(a) * ry * rr + (rr < 0.6 ? 5 : 0); const t = emoColor(e);
+    s.push('<ellipse cx="' + x.toFixed(1) + '" cy="' + yy.toFixed(1) + '" rx="3.2" ry="5" fill="' + (t || '#A9C98A') + '" stroke="#2F2A20" stroke-width=".7" transform="rotate(' + (a * 180 / Math.PI + 90).toFixed(0) + ' ' + x.toFixed(1) + ' ' + yy.toFixed(1) + ')"/>');
   });
   for (let p = 0; p < Math.min(po, 8); p++) {
     const xa = ex - rx * 0.8 + p * (rx * 1.6 / Math.max(Math.min(po, 8), 1)); const xb = xa + rx * 0.45; const ya = ey + ry * 0.75;
     s.push('<path d="M' + xa.toFixed(1) + ' ' + ya.toFixed(1) + ' C' + (xa + 3).toFixed(1) + ' ' + (ya + 14).toFixed(1) + ' ' + (xb - 3).toFixed(1) + ' ' + (ya + 14).toFixed(1) + ' ' + xb.toFixed(1) + ' ' + ya.toFixed(1) + '" stroke="#5E9B3F" stroke-width="1.5" fill="none"/>' +
       '<circle cx="' + ((xa + xb) / 2).toFixed(1) + '" cy="' + (ya + 10.5).toFixed(1) + '" r="2.4" fill="#F3C6D6" stroke="#8E3E5E" stroke-width=".7"/>');
   }
-  const temps = th.map(tempOf).filter(Boolean);
-  const avg = temps.length ? Math.round(th.filter(tempOf).reduce((a, e) => a + e.temp, 0) / temps.length) : 0;
-  return { svg: '<svg viewBox="0 0 ' + w + ' ' + h + '" aria-hidden="true">' + s.join('') + '</svg>', th: th.length, po, ro, avg };
+  return { svg: '<svg viewBox="0 0 ' + w + ' ' + h + '" aria-hidden="true">' + s.join('') + '</svg>', th: th.length, po, ro };
 }
+
+/* ---------- Bosque del año: un paisaje con un árbol por mes ---------- */
+const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
+function monthMood(y, m) {
+  const count = {};
+  S.journal.filter((e) => inMonth(e, y, m)).forEach((e) => { const l = emosOf(e); if (l.length) count[l[0].e] = (count[l[0].e] || 0) + 1; });
+  const top = Object.keys(count).sort((a, b) => count[b] - count[a])[0];
+  return top ? emoDef(top) : null;
+}
+
+/* Árbol compacto para el paisaje: base en (x,y), escala s. */
+function forestTree(x, y, s, leaves, lianas, seed, hi) {
+  const R = rng(seed); const o = []; const f = (v) => v.toFixed(1);
+  const tw = 5 * s, th = 26 * s, cy = y - th - 16 * s;
+  if (hi) o.push('<ellipse cx="' + f(x) + '" cy="' + f(cy - 2 * s) + '" rx="' + f(36 * s) + '" ry="' + f(34 * s) + '" fill="#FFF6D6" opacity=".9"/>');
+  o.push('<ellipse cx="' + f(x) + '" cy="' + f(y) + '" rx="' + f(26 * s) + '" ry="' + f(5 * s) + '" fill="#3E6B2E" opacity=".28"/>');
+  o.push('<path d="M' + f(x - tw) + ' ' + f(y) + ' C' + f(x - tw * 0.7) + ' ' + f(y - th * 0.5) + ' ' + f(x - tw * 0.4) + ' ' + f(y - th * 0.8) + ' ' + f(x - tw * 0.35) + ' ' + f(y - th) + ' L' + f(x + tw * 0.45) + ' ' + f(y - th) + ' C' + f(x + tw * 0.5) + ' ' + f(y - th * 0.8) + ' ' + f(x + tw * 0.8) + ' ' + f(y - th * 0.5) + ' ' + f(x + tw * 1.1) + ' ' + f(y) + 'Z" fill="#7A4E2D" stroke="#5A3A22" stroke-width="' + f(Math.max(0.8, 1.2 * s)) + '"/>');
+  const blobs = [[0, -10, 20], [-15, -2, 15], [15, -2, 15], [-8, -20, 13], [9, -20, 13], [0, 2, 17]]; const greens = ['#4E9A4B', '#5FAE55', '#469044'];
+  blobs.forEach(([dx, dy, r], k) => o.push('<circle cx="' + f(x + dx * s) + '" cy="' + f(cy + dy * s) + '" r="' + f(r * s) + '" fill="' + greens[k % 3] + '" stroke="#2F6B34" stroke-width="' + f(Math.max(0.7, 1.1 * s)) + '"/>'));
+  blobs.slice(0, 4).forEach(([dx, dy, r]) => o.push('<circle cx="' + f(x + (dx - r * 0.3) * s) + '" cy="' + f(cy + (dy - r * 0.35) * s) + '" r="' + f(r * 0.45 * s) + '" fill="#7CC165" opacity=".55"/>'));
+  for (let k = 0; k < Math.round(6 + 10 * s); k++) { const a = R() * 6.28, rr = 4 + R() * 18; const lx = x + Math.cos(a) * rr * s, ly = cy - 6 * s + Math.sin(a) * rr * 0.8 * s; o.push('<ellipse cx="' + f(lx) + '" cy="' + f(ly) + '" rx="' + f(1.4 * s) + '" ry="' + f(2.4 * s) + '" transform="rotate(' + Math.round(R() * 180) + ' ' + f(lx) + ' ' + f(ly) + ')" fill="#A6D67F"/>'); }
+  for (let i = 0; i < Math.min(lianas, 5); i++) { const sx = x + (-16 + i * 8) * s; o.push('<path d="M' + f(sx) + ' ' + f(cy + 6 * s) + ' q' + f(3 * s) + ' ' + f(12 * s) + ' ' + f(-1 * s) + ' ' + f(20 * s) + '" stroke="#3F7D3A" stroke-width="' + f(Math.max(0.8, 1.3 * s)) + '" fill="none"/><circle cx="' + f(sx - s) + '" cy="' + f(cy + 26 * s) + '" r="' + f(2.6 * s) + '" fill="#F3A6C0" stroke="#B04A75" stroke-width=".5"/>'); }
+  leaves.slice(0, 12).forEach((c) => { const a = R() * 6.28, rr = 3 + R() * 15; const lx = x + Math.cos(a) * rr * s, ly = cy - 6 * s + Math.sin(a) * rr * 0.75 * s; const h = 5.5 * s;
+    o.push('<path d="M' + f(lx) + ' ' + f(ly - h) + ' C' + f(lx + h * 0.8) + ' ' + f(ly - h * 0.4) + ' ' + f(lx + h * 0.7) + ' ' + f(ly + h * 0.7) + ' ' + f(lx) + ' ' + f(ly + h) + ' C' + f(lx - h * 0.7) + ' ' + f(ly + h * 0.7) + ' ' + f(lx - h * 0.8) + ' ' + f(ly - h * 0.4) + ' ' + f(lx) + ' ' + f(ly - h) + 'Z" fill="' + c + '" stroke="#4A3A20" stroke-width="' + f(Math.max(0.5, 0.8 * s)) + '"/>'); });
+  return o.join('');
+}
+function sprout(x, y, s) {
+  return '<ellipse cx="' + x + '" cy="' + y + '" rx="' + 12 * s + '" ry="' + 3.5 * s + '" fill="#8B6B45" opacity=".55"/><path d="M' + x + ' ' + y + ' v-' + 10 * s + ' M' + x + ' ' + (y - 6 * s) + ' q-' + 6 * s + ' -' + 2 * s + ' -' + 7 * s + ' -' + 7 * s + ' M' + x + ' ' + (y - 8 * s) + ' q' + 5 * s + ' -' + s + ' ' + 6 * s + ' -' + 6 * s + '" stroke="#4E9A4B" stroke-width="' + 1.6 * s + '" fill="none" stroke-linecap="round"/>';
+}
+function forestThumb() {
+  return '<svg viewBox="0 0 74 40" width="74" height="40" aria-hidden="true"><rect width="74" height="40" fill="#EEF1E2"/><path d="M0 34 Q20 26 40 31 T74 30 V40 H0Z" fill="#B5D18D"/>' +
+    forestTree(16, 32, 0.32, ['#5DB896'], 0, 2) + forestTree(36, 30, 0.42, ['#F2C230'], 0, 3) + forestTree(58, 33, 0.36, ['#4F7BD6'], 0, 4) + '</svg>';
+}
+
+const FOREST_W = 390, FOREST_H = 720;
+/* Enero al fondo, diciembre al frente; un sendero los une en orden. */
+const FOREST_SPOTS = [[196, 250], [286, 268], [102, 292], [228, 322], [330, 352], [70, 388], [200, 420], [318, 470], [92, 520], [238, 576], [136, 650], [300, 690]]
+  .map(([x, y]) => [x, Math.round(214 + (y - 250) * 0.95)]);
 
 function forestView() {
   const now = new Date();
-  const keys = new Set([monthKey(now.getFullYear(), now.getMonth())]);
-  S.journal.forEach((e) => { const d = new Date(e.createdAt); keys.add(monthKey(d.getFullYear(), d.getMonth())); });
-  const months = Array.from(keys).sort().reverse().map((k) => ({ y: Number(k.slice(0, 4)), m: Number(k.slice(5)) - 1 }));
-  const cards = months.map(({ y, m }) => {
-    const t = miniTree(y, m); const cur = y === now.getFullYear() && m === now.getMonth();
-    return '<button type="button" class="forest-card' + (cur ? ' cur' : '') + '" data-act="forestOpen" data-y="' + y + '" data-m="' + m + '">' +
-      '<span class="forest-art">' + t.svg + '</span><strong class="cap">' + esc(fmtDate(new Date(y, m, 1), { month: 'long' })) + (y !== now.getFullYear() ? ' ' + y : '') + (cur ? ' · ahora' : '') + '</strong>' +
-      '<span class="small muted">' + t.th + (t.th === 1 ? ' hoja' : ' hojas') + ' · ' + t.po + (t.po === 1 ? ' poema' : ' poemas') + ' · ' + t.ro + (t.ro === 1 ? ' raíz' : ' raíces') + '</span>' +
-      (t.avg ? '<span class="temp-chip" style="--tc:' + TEMPS[t.avg - 1].color + '">mes ' + TEMPS[t.avg - 1].label.toLowerCase() + '</span>' : '') + '</button>';
-  }).join('');
-  const strip = months.slice().reverse().map(({ y, m }) => {
-    const th = S.journal.filter((e) => inMonth(e, y, m) && tempOf(e)).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-    return th.length ? '<span title="' + esc(monthName(y, m)) + '" style="background:linear-gradient(90deg,' + th.map((e) => tempOf(e).color).join(',') + (th.length === 1 ? ',' + tempOf(th[0]).color : '') + ')"></span>' : '<span class="empty"></span>';
-  }).join('');
-  return '<div><h2 class="h2 m0">Tu bosque</h2><p class="small muted">Cada mes crece un árbol nuevo; los anteriores se quedan aquí.</p></div>' +
-    '<div class="forest-grid">' + cards + '</div>' +
-    '<section class="card"><h2 class="h2 m0">Tu temperatura, mes a mes</h2><div class="month-strip">' + strip + '</div>' +
-    '<div class="row between small muted">' + months.slice().reverse().map(({ y, m }) => '<span class="cap">' + esc(fmtDate(new Date(y, m, 1), { month: 'short' })) + '</span>').join('') + '</div></section>';
+  const years = new Set([now.getFullYear()]); S.journal.forEach((e) => years.add(new Date(e.createdAt).getFullYear()));
+  const yList = Array.from(years).sort();
+  const y = UI.forestYear && years.has(UI.forestYear) ? UI.forestYear : now.getFullYear();
+  const lastM = y < now.getFullYear() ? 11 : now.getMonth();
+  const sel = UI.forestSel != null ? UI.forestSel : lastM;
+  const W = FOREST_W, H = FOREST_H; const sc = [];
+  sc.push('<defs><linearGradient id="fsky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#F4EBD8"/><stop offset="1" stop-color="#E9F0DA"/></linearGradient></defs>');
+  sc.push('<rect width="' + W + '" height="' + H + '" fill="url(#fsky)"/><circle cx="318" cy="120" r="24" fill="#F7DFA0" opacity=".8"/>');
+  sc.push('<path d="M0 200 Q70 166 150 190 T300 178 T390 186 V' + H + ' H0Z" fill="#C9DDA8"/><path d="M0 270 Q90 234 200 260 T390 252 V' + H + ' H0Z" fill="#B5D18D"/>');
+  sc.push('<path d="M0 380 Q110 342 220 370 T390 362 V' + H + ' H0Z" fill="#A3C97A"/><path d="M0 530 Q120 492 250 518 T390 510 V' + H + ' H0Z" fill="#94C06A"/>');
+  /* sendero de diciembre (al frente) a enero (al fondo) */
+  const pts = FOREST_SPOTS.slice(0, lastM + 2 > 12 ? 12 : lastM + 2).map(([x, yy]) => [x, yy + 8]).reverse();
+  let d = 'M' + pts[0][0] + ' ' + (H - 20);
+  for (let i = 0; i < pts.length; i++) d += ' S' + ((pts[i][0] + (pts[i - 1] || pts[i])[0]) / 2 + (i % 2 ? 18 : -18)).toFixed(0) + ' ' + ((pts[i][1] + (pts[i - 1] || [0, H])[1]) / 2).toFixed(0) + ' ' + (pts[i][0] + (i % 2 ? 24 : -24)) + ' ' + (pts[i][1] + 14);
+  sc.push('<path d="' + d + '" stroke="#E7D3AE" stroke-width="10" fill="none" stroke-linecap="round" opacity=".9"/><path d="' + d + '" stroke="#D6BE91" stroke-width="1.2" fill="none" stroke-dasharray="2 7" stroke-linecap="round"/>');
+  const R = rng(y * 7919);
+  for (let k = 0; k < 14; k++) { const bx = R() * W, by = 230 + R() * 420; sc.push('<circle cx="' + bx.toFixed(0) + '" cy="' + by.toFixed(0) + '" r="' + ((5 + R() * 5) * (0.5 + (by - 230) / 500)).toFixed(1) + '" fill="#6FA552" opacity=".6"/>'); }
+  const hits = []; const signs = [];
+  for (let m = 0; m <= Math.min(11, lastM + 1); m++) {
+    const [x, yy] = FOREST_SPOTS[m]; const s = 0.42 + m * 0.065;
+    const month = S.journal.filter((e) => inMonth(e, y, m));
+    const label = fmtDate(new Date(y, m, 1), { month: 'short' }).replace('.', '');
+    if (m > lastM) { sc.push(sprout(x, yy, 1.4)); signs.push([x, yy + 24, label + ' · por crecer', false]); continue; }
+    if (!month.length) { sc.push(sprout(x, yy, 0.9 + m * 0.04)); signs.push([x, yy + 14, label, false]); }
+    else {
+      const leaves = month.filter((e) => e.kind === 'pensamiento').map((e) => emoColor(e) || '#E8E2CC');
+      const grow = Math.min(1, 0.6 + month.length / 25);
+      sc.push(forestTree(x, yy, s * grow, leaves, month.filter((e) => e.kind === 'poema').length, (y * 12 + m + 1) * 131, m === sel));
+      signs.push([x, yy + 10 + 6 * s, label, m === lastM && y === now.getFullYear()]);
+    }
+    hits.push('<button type="button" class="forest-hit' + (m === sel ? ' sel' : '') + '" data-act="forestPick" data-m="' + m + '" style="left:' + ((x - 32 * s) / W * 100).toFixed(2) + '%;top:' + ((yy - 74 * s) / H * 100).toFixed(2) + '%;width:' + (64 * s / W * 100).toFixed(2) + '%;height:' + (84 * s / H * 100).toFixed(2) + '%" aria-label="' + esc(fmtDate(new Date(y, m, 1), { month: 'long' })) + ': ' + month.length + (month.length === 1 ? ' entrada' : ' entradas') + '"></button>');
+  }
+  signs.forEach(([x, yy, t, strong]) => { const w = 10 + t.length * 6.2; sc.push('<path d="M' + x + ' ' + yy + ' v12" stroke="#6E4A2C" stroke-width="2"/><rect x="' + (x - w / 2).toFixed(1) + '" y="' + (yy - 12) + '" width="' + w.toFixed(1) + '" height="16" rx="4" fill="' + (strong ? '#17191C' : '#F6EBD3') + '" stroke="#8B6B45"/><text x="' + x + '" y="' + yy + '" text-anchor="middle" font-size="10.5" font-weight="700" font-family="system-ui, sans-serif" fill="' + (strong ? '#FFFFFF' : '#4A3A20') + '">' + esc(t) + '</text>'); });
+  const R2 = rng(y * 31);
+  for (let k = 0; k < 24; k++) { const fx = R2() * W, fy = 660 + R2() * 54; sc.push('<path d="M' + fx.toFixed(0) + ' ' + fy.toFixed(0) + ' l-2 -7 M' + fx.toFixed(0) + ' ' + fy.toFixed(0) + ' l2 -8 M' + fx.toFixed(0) + ' ' + fy.toFixed(0) + ' l5 -6" stroke="#5E9A45" stroke-width="1.3" stroke-linecap="round"/>'); }
+
+  const yearEntries = S.journal.filter((e) => new Date(e.createdAt).getFullYear() === y);
+  const trees = new Set(yearEntries.map((e) => new Date(e.createdAt).getMonth())).size;
+  const sm = S.journal.filter((e) => inMonth(e, y, sel)); const mood = monthMood(y, sel);
+  const yi = yList.indexOf(y);
+  let html = '<div class="row between"><button class="link-btn small" data-act="journalView" data-v="arbol">' + icon('back', 14) + ' Árbol del mes</button>' +
+    '<div class="year-pick" role="group" aria-label="Año"><button class="icon-btn sm" data-act="forestYear" data-y="' + (yList[yi - 1] || '') + '"' + (yi > 0 ? '' : ' disabled') + ' aria-label="Año anterior">' + icon('back', 16) + '</button><strong>' + y + '</strong>' +
+    '<button class="icon-btn sm" data-act="forestYear" data-y="' + (yList[yi + 1] || '') + '"' + (yi < yList.length - 1 ? '' : ' disabled') + ' aria-label="Año siguiente">' + icon('chevron', 16) + '</button></div></div>';
+  html += '<div><h2 class="h2 m0">Tu bosque de ' + y + '</h2><p class="small muted">' + trees + (trees === 1 ? ' árbol' : ' árboles') + ' · ' + plural(yearEntries.filter((e) => e.kind === 'pensamiento').length, 'hoja', 'hojas') + ' · ' + plural(yearEntries.filter((e) => e.kind === 'poema').length, 'liana', 'lianas') + ' · el sendero va de enero a hoy</p></div>';
+  html += '<div class="card forest-sel row gap"><span class="forest-sel-ico">' + leafSvgColors([mood ? mood.color : '#A9C98A'], 'fs', 18) + '</span><span class="grow"><strong class="cap">' + esc(fmtDate(new Date(y, sel, 1), { month: 'long' })) + '</strong><span class="small muted">' +
+    plural(sm.filter((e) => e.kind === 'pensamiento').length, 'hoja', 'hojas') + ' · ' + plural(sm.filter((e) => e.kind === 'poema').length, 'liana', 'lianas') + ' · ' + plural(sm.filter((e) => e.kind === 'terapia').length, 'raíz', 'raíces') + (mood ? ' · sobre todo ' + mood.label.toLowerCase() : '') + '</span></span>' +
+    '<button class="btn small-btn dark" data-act="forestOpen" data-y="' + y + '" data-m="' + sel + '">Abrir</button></div>';
+  html += '<div class="forest-wrap"><svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Bosque de ' + y + ': un árbol por mes">' + sc.join('') + '</svg><div class="forest-layer">' + hits.join('') + '</div></div>';
+  return html;
 }
 
-ACTIONS.forestOpen = (el) => { UI.journalMonth = { y: Number(el.dataset.y), m: Number(el.dataset.m) }; UI.journalView = 'arbol'; UI.treeSel = null; rerender(); };
+ACTIONS.forestPick = (el) => { UI.forestSel = Number(el.dataset.m); rerender(); };
+ACTIONS.forestYear = (el) => { if (!el.dataset.y) return; UI.forestYear = Number(el.dataset.y); UI.forestSel = null; rerender(); };
+ACTIONS.forestOpen = (el) => { UI.journalMonth = { y: Number(el.dataset.y), m: Number(el.dataset.m) }; UI.journalView = 'arbol'; UI.treeSel = null; UI.forestSel = null; rerender(); window.scrollTo(0, 0); };

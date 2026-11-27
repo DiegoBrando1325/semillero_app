@@ -64,7 +64,7 @@ const fragKindLabel = (id) => (FRAG_KINDS.find((k) => k.id === id) || FRAG_KINDS
 const ADAPT_STATUS = ['Idea', 'Borrador', 'En revisión', 'Terminado'];
 
 /* ---------- Estado en memoria, respaldado en IndexedDB ---------- */
-const S = { nuclei: [], journal: [], ideas: [], inbox: [], sessions: [], works: [], fragments: [], adaptations: [], settings: null };
+const S = { systems: [], nuclei: [], journal: [], ideas: [], inbox: [], sessions: [], works: [], fragments: [], adaptations: [], settings: null };
 const UI = { ideaFilter: { q: '', stage: 'activas', sector: '' }, aiMode: 'diablo', adaptTab: 'editar', fragTab: 'editar' };
 
 function defaultSettings() {
@@ -72,10 +72,12 @@ function defaultSettings() {
 }
 
 async function loadState() {
-  for (const k of ['ideas', 'inbox', 'sessions', 'works', 'fragments', 'adaptations', 'journal', 'nuclei']) S[k] = await DB.all(k);
+  for (const k of ['ideas', 'inbox', 'sessions', 'works', 'fragments', 'adaptations', 'journal', 'nuclei', 'systems']) S[k] = await DB.all(k);
   /* 0.4: campos nuevos con valor por defecto en datos de versiones anteriores */
   S.ideas.forEach((i) => { if (!Array.isArray(i.questions)) i.questions = []; if (!Array.isArray(i.nuclei)) i.nuclei = []; });
   S.journal.forEach((e) => { if (!Array.isArray(e.photos)) e.photos = []; });
+  /* 0.5: colores y sistema de los núcleos */
+  S.nuclei.forEach((n) => { if (!Array.isArray(n.colors)) n.colors = []; if (n.systemId == null) n.systemId = ''; });
   const draft = await DB.get('settings', 'draft');
   if (draft && draft.cap) UI.cap = draft.cap;
   S.settings = Object.assign(defaultSettings(), (await DB.get('settings', 'main')) || {});
@@ -174,7 +176,7 @@ function tokens(text) {
 }
 
 function ideaTokens(idea) {
-  return tokens([idea.title, idea.title, idea.body, Object.values(idea.answers || {}).join(' '), (idea.sectors || []).join(' ')].join(' '));
+  return tokens([idea.title, idea.title, plainText(idea.body), Object.values(idea.answers || {}).join(' '), (idea.sectors || []).join(' ')].join(' '));
 }
 
 function similarity(a, b) {
@@ -222,6 +224,26 @@ function relDays(iso) {
 
 /* ---------- Íconos ---------- */
 const ICONS = {
+  seed: '<circle cx="12" cy="12" r="7.5"/><path d="M9 10.5c1.5-1.5 4.5-1.5 6 .5"/>',
+  moon: '<path d="M19 15.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 9.5 11.5z"/>',
+  update: '<path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4v4.5h-4.5"/>',
+  feather: '<path d="M20 4c-7 0-13 5-13 12v4"/><path d="M7 16c5 0 10-3 11-9"/><path d="M11 12h5"/>',
+  cloud: '<path d="M7 18a4 4 0 0 1-.6-8A5.5 5.5 0 0 1 17 8.5 4.5 4.5 0 0 1 17.5 18z"/>',
+  image: '<rect x="3.5" y="5" width="17" height="14" rx="2.5"/><circle cx="9" cy="10" r="1.8"/><path d="M20 16l-5-5-8 8"/>',
+  pen: '<path d="M4 20l1-4L16 5l3 3L8 19z"/><path d="M14 7l3 3"/>',
+  search: '<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/>',
+  marker: '<path d="M5 19l3-1 10-10-2-2L6 16z"/><path d="M14 6l4 4"/>',
+  eraser: '<path d="M4 16l9-9 6 6-6 6H8z"/><path d="M9 20h11"/>',
+  hand: '<path d="M8 12V6a1.5 1.5 0 0 1 3 0v5M11 11V4.5a1.5 1.5 0 0 1 3 0V11M14 11V6a1.5 1.5 0 0 1 3 0v7a7 7 0 0 1-7 7h-.5A6 6 0 0 1 5 17l-2-4a1.5 1.5 0 0 1 2.6-1.4L8 14"/>',
+  undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/>',
+  dice: '<rect x="4.5" y="4.5" width="15" height="15" rx="3"/><circle cx="9" cy="9" r="1.1"/><circle cx="15" cy="15" r="1.1"/><circle cx="15" cy="9" r="1.1"/><circle cx="9" cy="15" r="1.1"/>',
+  target: '<circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="3"/>',
+  layers: '<path d="M12 4l8 4-8 4-8-4z"/><path d="M4 12l8 4 8-4"/><path d="M4 16l8 4 8-4"/>',
+  cal: '<rect x="4" y="5.5" width="16" height="14.5" rx="2.5"/><path d="M4 10h16M8.5 3.5v4M15.5 3.5v4"/>',
+  shield: '<path d="M12 3.5l7 3v5c0 4.5-3 7.8-7 9-4-1.2-7-4.5-7-9v-5z"/><path d="M9 12l2 2 4-4"/>',
+  list: '<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',
+  tree: '<path d="M12 21v-6"/><path d="M12 15c-4 0-7-2.5-7-6a7 7 0 0 1 14 0c0 3.5-3 6-7 6z"/>',
+  x: '<path d="M6 6l12 12M18 6L6 18"/>',
   book: '<path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5z"/><path d="M5 19.5A1.5 1.5 0 0 0 6.5 21H19v-3"/><path d="M9 7h6"/>',
   back: '<path d="m15 18-6-6 6-6"/>',
   chevron: '<path d="m9 18 6-6-6-6"/>',
@@ -272,7 +294,7 @@ function sectorTags(sectors) {
 }
 
 function ideaCard(idea) {
-  const snippet = (idea.body || '').replace(/\s+/g, ' ').trim().slice(0, 110);
+  const snippet = plainText(idea.body).replace(/\s+/g, ' ').trim().slice(0, 110);
   return '<a class="card idea-card row gap" href="#/idea/' + idea.id + '">' + orbHtml(idea, 'sm') +
     '<span class="grow"><span class="row between"><strong class="idea-card-title ellipsis">' + esc(ideaTitle(idea)) + '</strong>' + stagePill(idea.stage) + '</span>' +
     (snippet ? '<span class="small muted clamp2">' + esc(snippet) + '</span>' : '') +

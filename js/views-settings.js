@@ -73,13 +73,13 @@ async function exportMarkdown() {
   S.ideas.forEach((i) => {
     const set = QUESTION_SETS[i.qset] || QUESTION_SETS.general;
     lines.push('### ' + ideaTitle(i), '', '- Etapa: ' + stageLabel(i.stage), '- Sectores: ' + (i.sectors.join(', ') || '—'), '- Creada: ' + (i.createdAt ? localDate(new Date(i.createdAt)) : '—'), '');
-    if (i.body) lines.push(i.body, '');
+    if (plainText(i.body)) lines.push(plainText(i.body), '');
     set.items.forEach((it) => { if ((i.answers[it.id] || '').trim()) lines.push('**' + it.q + '** ' + i.answers[it.id], ''); });
     if (i.links.length) lines.push('Links:', ...i.links.map((l) => '- ' + l.url), '');
     if ((i.questions || []).length) lines.push('Preguntas:', ...i.questions.map((q) => '- ' + (q.done ? '[respondida] ' : '[abierta] ') + q.q + (q.a ? ' → ' + q.a : '')), '');
     if ((i.nuclei || []).length) lines.push('Núcleos: ' + i.nuclei.map((n) => nucleusTitle(byId('nuclei', n))).join(', '), '');
   });
-  if (S.nuclei.length) { lines.push('## Núcleos', ''); S.nuclei.forEach((n) => lines.push('### ' + nucleusTitle(n), '', n.goal ? 'Objetivo: ' + n.goal : '', n.next ? 'Siguiente paso: ' + n.next : '', 'Ideas: ' + (nucleusIdeas(n.id).map(ideaTitle).join(', ') || '—'), '')); }
+  if (S.nuclei.length) { lines.push('## Núcleos', ''); S.nuclei.forEach((n) => lines.push('### ' + nucleusTitle(n), '', 'Estado: ' + nucStateLabel(n.status) + (n.systemId && byId('systems', n.systemId) ? ' · Sistema: ' + systemTitle(byId('systems', n.systemId)) : ''), n.goal ? 'Objetivo: ' + n.goal : '', n.next ? 'Siguiente paso: ' + n.next : '', 'Ideas: ' + (nucleusIdeas(n.id).map(ideaTitle).join(', ') || '—'), '')); }
   lines.push('## Taller de cine', '');
   S.works.forEach((w) => {
     lines.push('### ' + (w.title || 'Obra sin título'), '');
@@ -93,7 +93,7 @@ async function exportMarkdown() {
     lines.push('## Cuaderno', '');
     S.journal.slice().sort((a, b) => a.createdAt.localeCompare(b.createdAt)).forEach((e) => {
       lines.push('### ' + journalKind(e.kind).label + ' · ' + localDate(new Date(e.createdAt)) + (e.title ? ': ' + e.title : ''), '', e.text || '', '');
-      if (tempOf(e)) lines.push('Temperatura: ' + tempOf(e).label, '');
+      if (emosOf(e).length) lines.push('Emoción: ' + emosOf(e).map(emoLabel).join(' + '), '');
       if (e.kind === 'terapia') lines.push('Estado: ' + (e.status === 'hablado' ? 'hablado' + (e.talkedAt ? ' el ' + e.talkedAt : '') : 'pendiente'), '');
       if (e.takeaway) lines.push('Lo que me llevé: ' + e.takeaway, '');
     });
